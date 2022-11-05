@@ -1,0 +1,21 @@
+[workspace]
+members = [
+]
+[package]
+name = "rust_output"
+authors = ["C2Rust"]
+version = "0.0.0"
+publish = false
+edition = "2018"
+autobins = false
+
+[lib]
+name = "rust_output"
+path = "lib.rs"
+crate-type = ["staticlib", "rlib"]
+[[bin]]
+path = "src/sshfs.rs"
+name = "sshfs"
+[dependencies]
+c2rust-bitfields= "0.3"
+libc= "0.2"
