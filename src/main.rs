@@ -10,7 +10,7 @@ mod ssh_opt;
 mod ssh;
 
 use ::libsshfs::*;
-use libfuse_sys::fuse::{fuse_opt, fuse_args, fuse_file_info, fuse_opt_free_args, fuse_opt_proc_t};
+use libfuse_sys::fuse::{fuse_opt, fuse_args, fuse_opt_parse, fuse_file_info, fuse_opt_free_args, fuse_opt_proc_t};
 use libc::{FILE, time_t};
 use std::ffi::{CString, CStr};
 use std::process::exit;
@@ -50,12 +50,6 @@ extern "C" {
         arg: *const libc::c_char,
     ) -> libc::c_int;
     fn fuse_opt_add_arg(args: *mut fuse_args, arg: *const libc::c_char) -> libc::c_int;
-    fn fuse_opt_parse(
-        args: *mut fuse_args,
-        data: *mut libc::c_void,
-        opts: *const fuse_opt,
-        proc_0: fuse_opt_proc_t,
-    ) -> libc::c_int;
     fn writev(__fd: libc::c_int, __iovec: *const iovec, __count: libc::c_int) -> ssize_t;
     fn fuse_lib_help(args: *mut fuse_args);
     fn fuse_new(
