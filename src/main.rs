@@ -6354,6 +6354,11 @@ unsafe fn main_0(
     return res;
 }
 pub fn main() {
+
+    let parsed_args = options::sshfs_options();
+    let _matches = parsed_args.get_matches();
+
+
     let mut args: Vec::<*mut libc::c_char> = Vec::new();
     for arg in ::std::env::args() {
         args.push(

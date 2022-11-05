@@ -1,6 +1,65 @@
-use libfuse_sys::fuse::{fuse_lib_help, fuse_args};
-use crate::IDMAP_DEFAULT;
+use crate::{IDMAP_DEFAULT, SSHFS_VERSION};
+use libfuse_sys::fuse::{fuse_args, fuse_lib_help};
 
+use clap::{Arg, ArgAction, Command};
+
+pub fn sshfs_options() -> Command {
+    Command::new("sshfs")
+        .version(SSHFS_VERSION)
+        .arg(
+            Arg::new("ssh_protocol_1")
+                .short('1')
+                .help("equivalent to '-o ssh_protocol=1'"),
+        )
+        .arg(
+            Arg::new("compression")
+                .short('C')
+                .action(ArgAction::SetTrue)
+                .help("equivlaent to '-o compression=yes'"),
+        )
+        .arg(
+            Arg::new("debug")
+                .short('d')
+                .long("debug")
+                .help("print some debugging information (implies -f)"),
+        )
+        .arg(
+            Arg::new("foreground")
+                .short('f')
+                .action(ArgAction::SetTrue)
+                .help("foreground operation"),
+        )
+        .arg(
+            Arg::new("ssh_configfile")
+                .short('F')
+                .help("specifies alternative ssh configuration file"),
+        )
+        .arg(
+            Arg::new("option")
+                .short('o')
+                .action(ArgAction::Append)
+                .help("mount options"),
+        )
+        .arg(
+            Arg::new("port")
+                .short('p')
+                .long("port")
+                .help("equivlaent to '-o port=PORT'"),
+        )
+        .arg(
+            Arg::new("multithreaded")
+                .short('s')
+                .help("disable multi-threaded operation")
+                .action(ArgAction::SetFalse),
+        )
+        .arg(
+            Arg::new("verbose")
+                .short('v')
+                .help("print ssh replies and messages"),
+        )
+        .arg(Arg::new("[user@]host:[dir]").required(true))
+        .arg(Arg::new("mountpoint").required(true))
+}
 
 pub fn show_help(fuse_args: *mut fuse_args) {
     let e = std::borrow::Cow::from("");
@@ -85,4 +144,3 @@ usage: {progname} [user@]host:[dir] mountpoint [options]
 "#
     );
 }
-
