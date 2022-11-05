@@ -27,6 +27,7 @@ from util import (
     os_open,
 )
 from os.path import join as pjoin
+from pathlib import Path
 
 TEST_FILE = __file__
 
@@ -100,8 +101,11 @@ def test_sshfs(
     mnt_dir = str(tmpdir.mkdir("mnt"))
     src_dir = str(tmpdir.mkdir("src"))
 
+    base_path = Path(__file__).parent.parent.parent
+    rust_sshfs_path = Path(base_path, "rust_output", "target", "debug", "sshfs")
+
     cmdline = base_cmdline + [
-        pjoin(basename, "sshfs"),
+        str(rust_sshfs_path),
         "-f",
         f"localhost:{src_dir}",
         mnt_dir,
