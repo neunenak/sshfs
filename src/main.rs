@@ -6086,7 +6086,7 @@ unsafe fn main_0(
     sshfs.dir_cache = 1 as libc::c_int;
     sshfs.show_help = 0 as libc::c_int;
     sshfs.show_version = 0 as libc::c_int;
-    sshfs.foreground = 0 as libc::c_int;
+    sshfs.foreground = if matches.get_flag("foreground") { 1 } else { 0 };
     sshfs.ptypassivefd = -(1 as libc::c_int);
     sshfs.delay_connect = 0 as libc::c_int;
     sshfs.passive = 0 as libc::c_int;
@@ -6372,6 +6372,10 @@ pub fn main() {
         )
     }
 }
+
+// This is the `show_version` offset
+const DUMMY_OFFSET: libc::c_ulong = 116;
+
 unsafe extern "C" fn run_static_initializers() {
     sshfs_opts = [
         {
@@ -6689,7 +6693,7 @@ unsafe extern "C" fn run_static_initializers() {
         {
             let mut init = fuse_opt {
                 templ: b"-f\0" as *const u8 as *const libc::c_char,
-                offset: 220 as libc::c_ulong,
+                offset: DUMMY_OFFSET as libc::c_ulong,
                 value: 1 as libc::c_int,
             };
             init
