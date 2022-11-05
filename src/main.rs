@@ -1427,37 +1427,38 @@ static mut workaround_opts: [fuse_opt; 17] = [
         init
     },
 ];
-unsafe extern "C" fn type_name(mut type_0: u8) -> *const libc::c_char {
-    match type_0 as libc::c_int {
-        1 => return b"INIT\0" as *const u8 as *const libc::c_char,
-        2 => return b"VERSION\0" as *const u8 as *const libc::c_char,
-        3 => return b"OPEN\0" as *const u8 as *const libc::c_char,
-        4 => return b"CLOSE\0" as *const u8 as *const libc::c_char,
-        5 => return b"READ\0" as *const u8 as *const libc::c_char,
-        6 => return b"WRITE\0" as *const u8 as *const libc::c_char,
-        7 => return b"LSTAT\0" as *const u8 as *const libc::c_char,
-        8 => return b"FSTAT\0" as *const u8 as *const libc::c_char,
-        9 => return b"SETSTAT\0" as *const u8 as *const libc::c_char,
-        10 => return b"FSETSTAT\0" as *const u8 as *const libc::c_char,
-        11 => return b"OPENDIR\0" as *const u8 as *const libc::c_char,
-        12 => return b"READDIR\0" as *const u8 as *const libc::c_char,
-        13 => return b"REMOVE\0" as *const u8 as *const libc::c_char,
-        14 => return b"MKDIR\0" as *const u8 as *const libc::c_char,
-        15 => return b"RMDIR\0" as *const u8 as *const libc::c_char,
-        16 => return b"REALPATH\0" as *const u8 as *const libc::c_char,
-        17 => return b"STAT\0" as *const u8 as *const libc::c_char,
-        18 => return b"RENAME\0" as *const u8 as *const libc::c_char,
-        19 => return b"READLINK\0" as *const u8 as *const libc::c_char,
-        20 => return b"SYMLINK\0" as *const u8 as *const libc::c_char,
-        101 => return b"STATUS\0" as *const u8 as *const libc::c_char,
-        102 => return b"HANDLE\0" as *const u8 as *const libc::c_char,
-        103 => return b"DATA\0" as *const u8 as *const libc::c_char,
-        104 => return b"NAME\0" as *const u8 as *const libc::c_char,
-        105 => return b"ATTRS\0" as *const u8 as *const libc::c_char,
-        200 => return b"EXTENDED\0" as *const u8 as *const libc::c_char,
-        201 => return b"EXTENDED_REPLY\0" as *const u8 as *const libc::c_char,
-        _ => return b"???\0" as *const u8 as *const libc::c_char,
-    };
+
+fn type_name(mut type_0: u8) -> &'static str {
+    match type_0 {
+        1 => "INIT",
+        2 => "VERSION",
+        3 => "OPEN",
+        4 => "CLOSE",
+        5 => "READ",
+        6 => "WRITE",
+        7 => "LSTAT",
+        8 => "FSTAT",
+        9 => "SETSTAT",
+        10 => "FSETSTAT",
+        11 => "OPENDIR",
+        12 => "READDIR",
+        13 => "REMOVE",
+        14 => "MKDIR",
+        15 => "RMDIR",
+        16 => "REALPATH",
+        17 => "STAT",
+        18 => "RENAME",
+        19 => "READLINK",
+        20 => "SYMLINK",
+        101 => "STATUS",
+        102 => "HANDLE",
+        103 => "DATA",
+        104 => "NAME",
+        105 => "ATTRS",
+        200 => "EXTENDED",
+        201 => "EXTENDED_REPLY",
+        _ => "???",
+    }
 }
 unsafe extern "C" fn list_init(mut head: *mut list_head) {
     let ref mut fresh0 = (*head).next;
@@ -2619,15 +2620,7 @@ unsafe extern "C" fn process_one_request(mut conn: *mut conn) -> libc::c_int {
                 + (now.tv_usec - (*req).start.tv_usec)
                     / 1000 as libc::c_int as libc::c_long) as libc::c_uint;
             if sshfs.debug != 0 {
-                fprintf(
-                    stderr,
-                    b"  [%05i] %14s %8ubytes (%ims)\n\0" as *const u8
-                        as *const libc::c_char,
-                    id,
-                    type_name(type_0),
-                    msgsize,
-                    difftime,
-                );
+                eprintln!("[{}] {} {} bytes ({}ms)", id, type_name(type_0), msgsize, difftime);
             }
             if difftime < sshfs.min_rtt || sshfs.num_received == 0 {
                 sshfs.min_rtt = difftime;
@@ -3341,12 +3334,7 @@ unsafe extern "C" fn sftp_request_send(
                 .wrapping_add((*req).len) as u64 as u64;
         }
         if sshfs.debug != 0 {
-            fprintf(
-                stderr,
-                b"[%05i] %s\n\0" as *const u8 as *const libc::c_char,
-                id,
-                type_name(type_0),
-            );
+            eprintln!("[{}] {}", id, type_name(type_0));
         }
         pthread_mutex_unlock(&mut sshfs.lock);
         err = -(5 as libc::c_int);
