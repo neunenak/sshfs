@@ -13,6 +13,7 @@ use ::libsshfs::*;
 use libfuse_sys::fuse::{fuse_opt, fuse_args, fuse_file_info, fuse_opt_free_args, fuse_opt_proc_t};
 use libc::{FILE, time_t};
 use std::ffi::{CString, CStr};
+use std::process::exit;
 
 
 extern "C" {
@@ -92,7 +93,6 @@ extern "C" {
     fn realloc(_: *mut libc::c_void, _: libc::c_ulong) -> *mut libc::c_void;
     fn free(_: *mut libc::c_void);
     fn abort() -> !;
-    fn exit(_: libc::c_int) -> !;
     fn unsetenv(__name: *const libc::c_char) -> libc::c_int;
     fn realpath(
         __name: *const libc::c_char,
@@ -115,7 +115,6 @@ extern "C" {
         __file: *const libc::c_char,
         __argv: *const *mut libc::c_char,
     ) -> libc::c_int;
-    fn _exit(_: libc::c_int) -> !;
     fn getpid() -> __pid_t;
     fn setsid() -> __pid_t;
     fn getuid() -> __uid_t;
@@ -1964,7 +1963,7 @@ unsafe extern "C" fn buf_get_entries(
 }
 unsafe extern "C" fn ssh_add_arg(mut arg: *const libc::c_char) {
     if fuse_opt_add_arg(&mut sshfs.ssh_args, arg) == -(1 as libc::c_int) {
-        _exit(1 as libc::c_int);
+        exit(1);
     }
 }
 unsafe extern "C" fn pty_expect_loop(mut conn: *mut conn) -> libc::c_int {
@@ -2183,7 +2182,7 @@ unsafe extern "C" fn start_ssh(mut conn: *mut conn) -> libc::c_int {
                     b"failed to redirect input/output\0" as *const u8
                         as *const libc::c_char,
                 );
-                _exit(1 as libc::c_int);
+                exit(1);
             }
             if sshfs.verbose == 0 && sshfs.foreground == 0
                 && devnull != -(1 as libc::c_int)
@@ -2196,11 +2195,11 @@ unsafe extern "C" fn start_ssh(mut conn: *mut conn) -> libc::c_int {
             match fork() {
                 -1 => {
                     perror(b"failed to fork\0" as *const u8 as *const libc::c_char);
-                    _exit(1 as libc::c_int);
+                    exit(1);
                 }
                 0 => {}
                 _ => {
-                    _exit(0 as libc::c_int);
+                    exit(0);
                 }
             }
             chdir(b"/\0" as *const u8 as *const libc::c_char);
@@ -2211,7 +2210,7 @@ unsafe extern "C" fn start_ssh(mut conn: *mut conn) -> libc::c_int {
                 sfd = open(ptyname, 0o2 as libc::c_int);
                 if sfd == -(1 as libc::c_int) {
                     perror(ptyname);
-                    _exit(1 as libc::c_int);
+                    exit(1);
                 }
                 close(sfd);
                 close(sshfs.ptypassivefd);
@@ -2241,7 +2240,7 @@ unsafe extern "C" fn start_ssh(mut conn: *mut conn) -> libc::c_int {
                 *(sshfs.ssh_args.argv).offset(0 as libc::c_int as isize),
                 strerror(*__errno_location()),
             );
-            _exit(1 as libc::c_int);
+            exit(1);
         }
     }
     waitpid(pid, 0 as *mut libc::c_int, 0 as libc::c_int);
@@ -6006,9 +6005,9 @@ unsafe extern "C" fn set_ssh_command() {
                 token,
             );
         } else if fuse_opt_insert_arg(&mut sshfs.ssh_args, i, token)
-            == -(1 as libc::c_int)
+            == -1
         {
-            _exit(1 as libc::c_int);
+            exit(1);
         }
         i += 1;
         token = tokenize_on_space(0 as *mut libc::c_char);
@@ -6027,7 +6026,7 @@ unsafe extern "C" fn find_base_path() -> *mut libc::c_char {
                         b"missing ']' in hostname\n\0" as *const u8
                             as *const libc::c_char,
                     );
-                    exit(1 as libc::c_int);
+                    exit(1);
                 }
                 let fresh56 = d;
                 d = d.offset(1);
@@ -6069,7 +6068,7 @@ fn add_comma_escaped_hostname(args: *mut fuse_args, hostname: *const libc::c_cha
         Ok(s) => s,
         Err(err) => {
             eprintln!("Error allocating string: {}", err);
-            std::process::exit(1);
+            exit(1);
         }
     };
     unsafe {
@@ -6159,14 +6158,14 @@ unsafe fn main_0(
         ),
     ) == -(1 as libc::c_int) || parse_workarounds() == -(1 as libc::c_int)
     {
-        exit(1 as libc::c_int);
+        exit(1);
     }
     if sshfs.show_version != 0 {
         println!("SSHFS version {}", SSHFS_VERSION);
         let fuse_package_version = unsafe { CStr::from_ptr(fuse_pkgversion()) };
         println!("FUSE library version {}", fuse_package_version.to_string_lossy());
         fuse_lowlevel_version();
-        std::process::exit(0);
+        exit(0);
     }
     if sshfs.show_help != 0 {
         help::show_help(&mut args);
@@ -6178,7 +6177,7 @@ unsafe fn main_0(
                 b"see `%s -h' for usage\n\0" as *const u8 as *const libc::c_char,
                 *argv.offset(0 as libc::c_int as isize),
             );
-            exit(1 as libc::c_int);
+            exit(1);
         } else {
             if (sshfs.mountpoint).is_null() {
                 fprintf(
@@ -6191,7 +6190,7 @@ unsafe fn main_0(
                     b"see `%s -h' for usage\n\0" as *const u8 as *const libc::c_char,
                     *argv.offset(0 as libc::c_int as isize),
                 );
-                exit(1 as libc::c_int);
+                exit(1);
             }
         }
     }
