@@ -65,10 +65,10 @@ pub fn sshfs_options() -> Command {
                 .help("equivlaent to '-o port=PORT'"),
         )
         .arg(
-            Arg::new("multithreaded")
+            Arg::new("singlethreaded")
                 .short('s')
                 .help("disable multi-threaded operation")
-                .action(ArgAction::SetFalse),
+                .action(ArgAction::SetTrue),
         )
         .arg(
             Arg::new("verbose")
@@ -166,5 +166,3 @@ usage: {progname} [user@]host:[dir] mountpoint [options]
 "#
     );
 }
-
-pub fn set_sshfs_options_from_matches(matches: ArgMatches) {}

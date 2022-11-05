@@ -14,6 +14,7 @@ use libfuse_sys::fuse::{fuse_opt, fuse_args, fuse_opt_parse, fuse_file_info, fus
 use libc::{FILE, time_t};
 use std::ffi::{CString, CStr};
 use std::process::exit;
+use clap::ArgMatches;
 
 const IDMAP_DEFAULT: &str = if cfg!(target_os = "macos") {
     "user"
@@ -1068,7 +1069,7 @@ pub struct sshfs {
     pub dir_cache: libc::c_int,
     pub show_version: libc::c_int, //DEPRECATED
     pub show_help: libc::c_int,
-    pub singlethread: libc::c_int,
+    pub singlethread: libc::c_int, //DEPRECATED
     pub mountpoint: *mut libc::c_char,
     pub uid_file: *mut libc::c_char,
     pub gid_file: *mut libc::c_char,
@@ -6054,6 +6055,7 @@ fn add_comma_escaped_hostname(args: *mut fuse_args, hostname: *const libc::c_cha
 unsafe fn main_0(
     mut argc: libc::c_int,
     mut argv: *mut *mut libc::c_char,
+    matches: ArgMatches,
 ) -> libc::c_int {
     let mut res: libc::c_int = 0;
     let mut args: fuse_args = {
@@ -6084,7 +6086,6 @@ unsafe fn main_0(
     sshfs.dir_cache = 1 as libc::c_int;
     sshfs.show_help = 0 as libc::c_int;
     sshfs.show_version = 0 as libc::c_int;
-    sshfs.singlethread = 0 as libc::c_int;
     sshfs.foreground = 0 as libc::c_int;
     sshfs.ptypassivefd = -(1 as libc::c_int);
     sshfs.delay_connect = 0 as libc::c_int;
@@ -6307,7 +6308,7 @@ unsafe fn main_0(
         fuse_destroy(fuse);
         exit(1 as libc::c_int);
     }
-    if sshfs.singlethread != 0 {
+    if matches.get_flag("singlethreaded") {
         res = fuse_loop(fuse);
     } else {
         res = fuse_loop_mt_31(fuse, 0 as libc::c_int);
@@ -6351,10 +6352,6 @@ pub fn main() {
     let parsed_args = options::sshfs_options();
     let matches = parsed_args.get_matches();
 
-    unsafe {
-        options::set_sshfs_options_from_matches(matches);
-    }
-
 
     let mut args: Vec::<*mut libc::c_char> = Vec::new();
     for arg in ::std::env::args() {
@@ -6370,6 +6367,7 @@ pub fn main() {
             main_0(
                 (args.len() - 1) as libc::c_int,
                 args.as_mut_ptr() as *mut *mut libc::c_char,
+                matches
             ) as i32,
         )
     }
