@@ -1,10 +1,7 @@
-[workspace]
-members = [
-]
 [package]
-name = "rust_output"
-authors = ["C2Rust"]
-version = "0.0.0"
+name = "sshfs"
+authors = ["SSHFS Maintainers"]
+version = "0.1.0"
 publish = false
 edition = "2021"
 autobins = false
@@ -16,6 +13,7 @@ crate-type = ["staticlib", "rlib"]
 [[bin]]
 path = "src/sshfs.rs"
 name = "sshfs"
+
 [dependencies]
 c2rust-bitfields= "0.3"
 libc= "0.2"

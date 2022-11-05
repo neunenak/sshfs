@@ -47,8 +47,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "rust_output"
-version = "0.0.0"
+name = "sshfs"
+version = "0.1.0"
 dependencies = [
  "c2rust-bitfields",
  "libc",
