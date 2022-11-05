@@ -21,7 +21,7 @@ enum IdType {
     Gid,
 }
 
-enum MapBehavior {
+pub enum MapBehavior {
     Ignore,
     Error,
 }

@@ -6213,60 +6213,7 @@ unsafe extern "C" fn ssh_connect() -> libc::c_int {
     }
     return 0 as libc::c_int;
 }
-unsafe extern "C" fn username_to_uid(mut name: *mut libc::c_char) -> *mut u32 {
-    *__errno_location() = 0 as libc::c_int;
-    let mut pw: *mut passwd = getpwnam(name);
-    if pw.is_null() {
-        if *__errno_location() == 0 as libc::c_int {
-            return 0 as *mut u32;
-        }
-        fprintf(
-            stderr,
-            b"Failed to look up user '%s': %s\n\0" as *const u8 as *const libc::c_char,
-            name,
-            strerror(*__errno_location()),
-        );
-        exit(1 as libc::c_int);
-    }
-    let mut r: *mut u32 = malloc(::std::mem::size_of::<u32>() as libc::c_ulong)
-        as *mut u32;
-    if r.is_null() {
-        fprintf(
-            stderr,
-            b"sshfs: memory allocation failed\n\0" as *const u8 as *const libc::c_char,
-        );
-        abort();
-    }
-    *r = (*pw).pw_uid;
-    return r;
-}
-unsafe extern "C" fn groupname_to_gid(mut name: *mut libc::c_char) -> *mut u32 {
-    *__errno_location() = 0 as libc::c_int;
-    let mut gr: *mut group = getgrnam(name);
-    if gr.is_null() {
-        if *__errno_location() == 0 as libc::c_int {
-            return 0 as *mut u32;
-        }
-        fprintf(
-            stderr,
-            b"Failed to look up group '%s': %s\n\0" as *const u8 as *const libc::c_char,
-            name,
-            strerror(*__errno_location()),
-        );
-        exit(1 as libc::c_int);
-    }
-    let mut r: *mut u32 = malloc(::std::mem::size_of::<u32>() as libc::c_ulong)
-        as *mut u32;
-    if r.is_null() {
-        fprintf(
-            stderr,
-            b"sshfs: memory allocation failed\n\0" as *const u8 as *const libc::c_char,
-        );
-        abort();
-    }
-    *r = (*gr).gr_gid;
-    return r;
-}
+
 unsafe fn main_0(
     mut argc: libc::c_int,
     mut argv: *mut *mut libc::c_char,
@@ -6274,8 +6221,8 @@ unsafe fn main_0(
     let mut res: libc::c_int = 0;
     let mut args: fuse_args = {
         let mut init = fuse_args {
-            argc: argc,
-            argv: argv,
+            argc,
+            argv,
             allocated: 0 as libc::c_int,
         };
         init
