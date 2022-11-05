@@ -6374,7 +6374,7 @@ pub fn main() {
 }
 
 // This is the `show_version` offset
-const DUMMY_OFFSET: libc::c_ulong = 116;
+const DISCARD: libc::c_int = -4;
 
 unsafe extern "C" fn run_static_initializers() {
     sshfs_opts = [
@@ -6693,8 +6693,8 @@ unsafe extern "C" fn run_static_initializers() {
         {
             let mut init = fuse_opt {
                 templ: b"-f\0" as *const u8 as *const libc::c_char,
-                offset: DUMMY_OFFSET as libc::c_ulong,
-                value: 1 as libc::c_int,
+                offset: 116 as libc::c_ulong,
+                value: DISCARD,
             };
             init
         },
@@ -6702,7 +6702,7 @@ unsafe extern "C" fn run_static_initializers() {
             let mut init = fuse_opt {
                 templ: b"-s\0" as *const u8 as *const libc::c_char,
                 offset: 124 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             };
             init
         },
@@ -6750,7 +6750,7 @@ unsafe extern "C" fn run_static_initializers() {
             let mut init = fuse_opt {
                 templ: b"writeback_cache=no\0" as *const u8 as *const libc::c_char,
                 offset: (1 as libc::c_uint).wrapping_neg() as libc::c_ulong,
-                value: -(4 as libc::c_int),
+                value: DISCARD,
             };
             init
         },
