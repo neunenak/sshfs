@@ -4,6 +4,7 @@
 
 mod id_map;
 mod ssh_opt;
+mod help;
 
 use ::libsshfs::*;
 use libfuse_sys::fuse::{fuse_opt, fuse_args, fuse_file_info, fuse_opt_free_args, fuse_opt_proc_t};
@@ -5846,13 +5847,6 @@ static mut sshfs_oper: fuse_operations = unsafe {
         init
     }
 };
-unsafe extern "C" fn usage(mut progname: *const libc::c_char) {
-    printf(
-        b"usage: %s [user@]host:[dir] mountpoint [options]\n\n    -h   --help            print help\n    -V   --version         print version\n    -f                     foreground operation\n    -s                     disable multi-threaded operation\n    -p PORT                equivalent to '-o port=PORT'\n    -C                     equivalent to '-o compression=yes'\n    -F ssh_configfile      specifies alternative ssh configuration file\n    -1                     equivalent to '-o ssh_protocol=1'\n    -o opt,[opt...]        mount options\n    -o reconnect           reconnect to server\n    -o delay_connect       delay connection to server\n    -o sshfs_sync          synchronous writes\n    -o no_readahead        synchronous reads (no speculative readahead)\n    -o sync_readdir        synchronous readdir\n    -d, --debug            print some debugging information (implies -f)\n    -v, --verbose          print ssh replies and messages\n    -o dir_cache=BOOL      enable caching of directory contents (names,\n                           attributes, symlink targets) {yes,no} (default: yes)\n    -o dcache_max_size=N   sets the maximum size of the directory cache (default: 10000)\n    -o dcache_timeout=N    sets timeout for directory cache in seconds (default: 20)\n    -o dcache_{stat,link,dir}_timeout=N\n                           sets separate timeout for {attributes, symlinks, names}\n    -o dcache_clean_interval=N\n                           sets the interval for automatic cleaning of the\n                           cache (default: 60)\n    -o dcache_min_clean_interval=N\n                           sets the interval for forced cleaning of the\n                           cache if full (default: 5)\n    -o direct_io           enable direct i/o\n    -o workaround=LIST     colon separated list of workarounds\n             none             no workarounds enabled\n             [no]rename       fix renaming to existing file (default: off)\n             [no]renamexdev   fix moving across filesystems (default: off)\n             [no]truncate     fix truncate for old servers (default: off)\n             [no]buflimit     fix buffer fillup bug in server (default: off)\n             [no]fstat        always use stat() instead of fstat() (default: off)\n             [no]createmode   always pass mode 0 to create (default: off)\n    -o idmap=TYPE          user/group ID mapping (default: none)\n             none             no translation of the ID space\n             user             only translate UID/GID of connecting user\n             file             translate UIDs/GIDs contained in uidfile/gidfile\n    -o uidfile=FILE        file containing username:remote_uid mappings\n    -o gidfile=FILE        file containing groupname:remote_gid mappings\n    -o nomap=TYPE          with idmap=file, how to handle missing mappings\n             ignore           don't do any re-mapping\n             error            return an error (default)\n    -o ssh_command=CMD     execute CMD instead of 'ssh'\n    -o ssh_protocol=N      ssh protocol to use (default: 2)\n    -o sftp_server=SERV    path to sftp server or subsystem (default: sftp)\n    -o directport=PORT     directly connect to PORT bypassing ssh\n    -o passive             communicate over stdin and stdout bypassing network\n    -o disable_hardlink    link(2) will return with errno set to ENOSYS\n    -o transform_symlinks  transform absolute symlinks to relative\n    -o follow_symlinks     follow symlinks on the server\n    -o no_check_root       don't check for existence of 'dir' on server\n    -o password_stdin      read password from stdin (only for pam_mount!)\n    -o max_conns=N         open parallel SSH connections\n    -o SSHOPT=VAL          ssh options (see man ssh_config)\n\nFUSE Options:\n\0"
-            as *const u8 as *const libc::c_char,
-        progname,
-    );
-}
 unsafe extern "C" fn sshfs_opt_proc(
     mut data: *mut libc::c_void,
     mut arg: *const libc::c_char,
@@ -6309,9 +6303,7 @@ unsafe fn main_0(
         exit(0 as libc::c_int);
     }
     if sshfs.show_help != 0 {
-        usage(*(args.argv).offset(0 as libc::c_int as isize));
-        fuse_lib_help(&mut args);
-        exit(0 as libc::c_int);
+        help::show_help(&mut args);
     } else {
         if (sshfs.host).is_null() {
             fprintf(stderr, b"missing host\n\0" as *const u8 as *const libc::c_char);
