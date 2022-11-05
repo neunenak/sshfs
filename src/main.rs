@@ -1066,7 +1066,7 @@ pub struct sshfs {
     pub nomap: libc::c_int,
     pub disable_hardlink: libc::c_int,
     pub dir_cache: libc::c_int,
-    pub show_version: libc::c_int,
+    pub show_version: libc::c_int, //DEPRECATED
     pub show_help: libc::c_int,
     pub singlethread: libc::c_int,
     pub mountpoint: *mut libc::c_char,
@@ -1263,11 +1263,11 @@ static mut sshfs: sshfs = sshfs {
     total_rtt: 0,
     num_connect: 0,
 };
-static mut sshfs_opts: [fuse_opt; 57] = [fuse_opt {
+static mut sshfs_opts: [fuse_opt; 56] = [fuse_opt {
     templ: 0 as *const libc::c_char,
     offset: 0,
     value: 0,
-}; 57];
+}; 56];
 static mut workaround_opts: [fuse_opt; 17] = [
     {
         let mut init = fuse_opt {
@@ -6119,13 +6119,6 @@ unsafe fn main_0(
     {
         exit(1);
     }
-    if sshfs.show_version != 0 {
-        println!("SSHFS version {}", SSHFS_VERSION);
-        let fuse_package_version = unsafe { CStr::from_ptr(fuse_pkgversion()) };
-        println!("FUSE library version {}", fuse_package_version.to_string_lossy());
-        fuse_lowlevel_version();
-        exit(0);
-    }
     if sshfs.show_help != 0 {
         options::show_help(&mut args);
     } else {
@@ -6356,7 +6349,11 @@ unsafe fn main_0(
 pub fn main() {
 
     let parsed_args = options::sshfs_options();
-    let _matches = parsed_args.get_matches();
+    let matches = parsed_args.get_matches();
+
+    unsafe {
+        options::set_sshfs_options_from_matches(matches);
+    }
 
 
     let mut args: Vec::<*mut libc::c_char> = Vec::new();
@@ -6655,14 +6652,6 @@ unsafe extern "C" fn run_static_initializers() {
             let mut init = fuse_opt {
                 templ: b"--help\0" as *const u8 as *const libc::c_char,
                 offset: 120 as libc::c_ulong,
-                value: 1 as libc::c_int,
-            };
-            init
-        },
-        {
-            let mut init = fuse_opt {
-                templ: b"-V\0" as *const u8 as *const libc::c_char,
-                offset: 116 as libc::c_ulong,
                 value: 1 as libc::c_int,
             };
             init

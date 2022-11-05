@@ -1,11 +1,29 @@
 use crate::{IDMAP_DEFAULT, SSHFS_VERSION};
 use libfuse_sys::fuse::{fuse_args, fuse_lib_help};
+use std::ffi::CStr;
 
-use clap::{Arg, ArgAction, Command};
+use clap::{Arg, ArgAction, ArgMatches, Command};
+
+fn version_string() -> String {
+    use std::fmt::Write;
+
+    let mut buf = String::new();
+    writeln!(buf, "SSHFS version {}", SSHFS_VERSION).unwrap();
+
+    let fuse_package_version = unsafe { CStr::from_ptr(crate::fuse_pkgversion()) };
+    writeln!(
+        buf,
+        "FUSE library version {}",
+        fuse_package_version.to_string_lossy()
+    )
+    .unwrap();
+    //TODO can this print fuse_lowlevel_version() and fusermount information?
+    buf
+}
 
 pub fn sshfs_options() -> Command {
     Command::new("sshfs")
-        .version(SSHFS_VERSION)
+        .version(version_string())
         .arg(
             Arg::new("ssh_protocol_1")
                 .short('1')
@@ -148,3 +166,5 @@ usage: {progname} [user@]host:[dir] mountpoint [options]
 "#
     );
 }
+
+pub fn set_sshfs_options_from_matches(matches: ArgMatches) {}
