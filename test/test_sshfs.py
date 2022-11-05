@@ -101,8 +101,8 @@ def test_sshfs(
     mnt_dir = str(tmpdir.mkdir("mnt"))
     src_dir = str(tmpdir.mkdir("src"))
 
-    base_path = Path(__file__).parent.parent.parent
-    rust_sshfs_path = Path(base_path, "rust_output", "target", "debug", "sshfs")
+    base_path = Path(__file__).parent.parent
+    rust_sshfs_path = Path(base_path, "target", "debug", "sshfs")
 
     cmdline = base_cmdline + [
         str(rust_sshfs_path),
@@ -133,6 +133,7 @@ def test_sshfs(
     # Abort on warnings from glib
     new_env["G_DEBUG"] = "fatal-warnings"
 
+    print(f"CMDLINE: {cmdline}")
     mount_process = subprocess.Popen(cmdline, env=new_env)
     try:
         wait_for_mount(mount_process, mnt_dir)

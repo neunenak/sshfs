@@ -3,15 +3,17 @@ default:
 
 build_directory := "build"
 
-build:
+build-c:
     #!/usr/bin/env bash
     mkdir {{build_directory}}
     cd {{build_directory}}
     meson ..
     ninja
 
+build-rust:
+    cargo build
 
-test: build
+test: build-rust
     #!/usr/bin/env bash
     cd {{build_directory}}
     /usr/bin/env python3 -m pytest test
