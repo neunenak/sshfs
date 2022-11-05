@@ -2,9 +2,10 @@
 #![register_tool(c2rust)]
 #![feature(extern_types, register_tool)]
 
+mod help;
 mod id_map;
 mod ssh_opt;
-mod help;
+mod ssh;
 
 use ::libsshfs::*;
 use libfuse_sys::fuse::{fuse_opt, fuse_args, fuse_file_info, fuse_opt_free_args, fuse_opt_proc_t};
@@ -232,7 +233,6 @@ extern "C" {
         __newmask: *const __sigset_t,
         __oldmask: *mut __sigset_t,
     ) -> libc::c_int;
-    fn signal(__sig: libc::c_int, __handler: __sighandler_t) -> __sighandler_t;
     fn kill(__pid: __pid_t, __sig: libc::c_int) -> libc::c_int;
     fn sigemptyset(__set: *mut sigset_t) -> libc::c_int;
     fn sigaddset(__set: *mut sigset_t, __signo: libc::c_int) -> libc::c_int;
@@ -3152,7 +3152,7 @@ unsafe extern "C" fn sftp_check_root(
     buf_free(&mut buf);
     return err;
 }
-unsafe extern "C" fn connect_remote(mut conn: *mut conn) -> libc::c_int {
+unsafe fn connect_remote(mut conn: *mut conn) -> libc::c_int {
     let mut err: libc::c_int = 0;
     if sshfs.passive != 0 {
         err = connect_passive(conn);
@@ -5584,54 +5584,6 @@ unsafe extern "C" fn sshfs_truncate_workaround(
         }
     };
 }
-unsafe extern "C" fn processing_init() -> libc::c_int {
-    let mut i: libc::c_int = 0;
-    signal(
-        13 as libc::c_int,
-        ::std::mem::transmute::<
-            libc::intptr_t,
-            __sighandler_t,
-        >(1 as libc::c_int as libc::intptr_t),
-    );
-    pthread_mutex_init(&mut sshfs.lock, 0 as *const pthread_mutexattr_t);
-    i = 0 as libc::c_int;
-    while i < sshfs.max_conns {
-        pthread_mutex_init(
-            &mut (*(sshfs.conns).offset(i as isize)).lock_write,
-            0 as *const pthread_mutexattr_t,
-        );
-        i += 1;
-    }
-    pthread_cond_init(&mut sshfs.outstanding_cond, 0 as *const pthread_condattr_t);
-    sshfs.reqtab = g_hash_table_new(None, None);
-    if (sshfs.reqtab).is_null() {
-        fprintf(
-            stderr,
-            b"failed to create hash table\n\0" as *const u8 as *const libc::c_char,
-        );
-        return -(1 as libc::c_int);
-    }
-    if sshfs.max_conns > 1 as libc::c_int {
-        sshfs
-            .conntab = g_hash_table_new_full(
-            Some(g_str_hash as unsafe extern "C" fn(gconstpointer) -> guint),
-            Some(
-                g_str_equal
-                    as unsafe extern "C" fn(gconstpointer, gconstpointer) -> gboolean,
-            ),
-            Some(g_free as unsafe extern "C" fn(gpointer) -> ()),
-            None,
-        );
-        if (sshfs.conntab).is_null() {
-            fprintf(
-                stderr,
-                b"failed to create hash table\n\0" as *const u8 as *const libc::c_char,
-            );
-            return -(1 as libc::c_int);
-        }
-    }
-    return 0 as libc::c_int;
-}
 static mut sshfs_oper: fuse_operations = unsafe {
     {
         let mut init = fuse_operations {
@@ -6184,29 +6136,6 @@ fn add_comma_escaped_hostname(args: *mut fuse_args, hostname: *const libc::c_cha
 
 
 
-unsafe extern "C" fn ssh_connect() -> libc::c_int {
-    let mut res: libc::c_int = 0;
-    res = processing_init();
-    if res == -(1 as libc::c_int) {
-        return -(1 as libc::c_int);
-    }
-    if sshfs.delay_connect == 0 {
-        if connect_remote(&mut *(sshfs.conns).offset(0 as libc::c_int as isize))
-            == -(1 as libc::c_int)
-        {
-            return -(1 as libc::c_int);
-        }
-        if sshfs.no_check_root == 0
-            && sftp_check_root(
-                &mut *(sshfs.conns).offset(0 as libc::c_int as isize),
-                sshfs.base_path,
-            ) != 0 as libc::c_int
-        {
-            return -(1 as libc::c_int);
-        }
-    }
-    return 0 as libc::c_int;
-}
 
 unsafe fn main_0(
     mut argc: libc::c_int,
@@ -6503,7 +6432,7 @@ unsafe fn main_0(
                 as *const libc::c_char,
         );
     }
-    res = ssh_connect();
+    res = ssh::ssh_connect();
     if res == -(1 as libc::c_int) {
         fuse_unmount(fuse);
         fuse_destroy(fuse);
