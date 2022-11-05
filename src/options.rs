@@ -39,6 +39,7 @@ pub fn sshfs_options() -> Command {
             Arg::new("debug")
                 .short('d')
                 .long("debug")
+                .action(ArgAction::SetTrue)
                 .help("print some debugging information (implies -f)"),
         )
         .arg(

@@ -1044,6 +1044,7 @@ pub struct conntab_entry {
     pub refcount: libc::c_uint,
     pub conn: *mut conn,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct sshfs {
@@ -6079,7 +6080,7 @@ unsafe fn main_0(
     sshfs.truncate_workaround = 0 as libc::c_int;
     sshfs.buflimit_workaround = 0 as libc::c_int;
     sshfs.createmode_workaround = 0 as libc::c_int;
-    sshfs.ssh_ver = 2 as libc::c_int as libc::c_uint;
+    sshfs.ssh_ver = 2;
     sshfs.progname = *argv.offset(0 as libc::c_int as isize);
     sshfs.max_conns = 1 as libc::c_int;
     sshfs.ptyfd = -(1 as libc::c_int);
@@ -6322,36 +6323,30 @@ unsafe fn main_0(
     fuse_unmount(fuse);
     fuse_destroy(fuse);
     if sshfs.debug != 0 {
-        let mut avg_rtt: libc::c_uint = 0 as libc::c_int as libc::c_uint;
-        if sshfs.num_sent != 0 {
-            avg_rtt = (sshfs.total_rtt).wrapping_div(sshfs.num_sent) as libc::c_uint;
-        }
-        if sshfs.debug != 0 {
-            fprintf(
-                stderr,
-                b"\nsent:               %llu messages, %llu bytes\nreceived:           %llu messages, %llu bytes\nrtt min/max/avg:    %ums/%ums/%ums\nnum connect:        %u\n\0"
-                    as *const u8 as *const libc::c_char,
-                sshfs.num_sent as libc::c_ulonglong,
-                sshfs.bytes_sent as libc::c_ulonglong,
-                sshfs.num_received as libc::c_ulonglong,
-                sshfs.bytes_received as libc::c_ulonglong,
-                sshfs.min_rtt,
-                sshfs.max_rtt,
-                avg_rtt,
-                sshfs.num_connect,
-            );
-        }
+        let avg_rtt = if sshfs.num_sent == 0 {
+            0
+        } else {
+            (sshfs.total_rtt).wrapping_div(sshfs.num_sent)
+        };
+
+        eprintln!(r#"
+            sent:               {} messages, {} bytes
+            received:           {} messages, {} bytes
+            rtt min/max/avg:    {}ms/{}ms/{}ms
+            num connect:        {}
+            "#, sshfs.num_sent, sshfs.bytes_sent, sshfs.num_received, sshfs.bytes_received,
+            sshfs.min_rtt, sshfs.max_rtt, avg_rtt, sshfs.num_connect
+        );
     }
     fuse_opt_free_args(&mut args);
     fuse_opt_free_args(&mut sshfs.ssh_args);
     free(sshfs.directport as *mut libc::c_void);
     return res;
 }
-pub fn main() {
 
+pub fn main() {
     let parsed_args = options::sshfs_options();
     let matches = parsed_args.get_matches();
-
 
     let mut args: Vec::<*mut libc::c_char> = Vec::new();
     for arg in ::std::env::args() {
@@ -6363,7 +6358,7 @@ pub fn main() {
     }
     args.push(::std::ptr::null_mut());
     unsafe {
-        ::std::process::exit(
+        std::process::exit(
             main_0(
                 (args.len() - 1) as libc::c_int,
                 args.as_mut_ptr() as *mut *mut libc::c_char,
