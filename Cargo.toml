@@ -12,4 +12,4 @@ crate-type = ["staticlib", "rlib"]
 [dependencies]
 c2rust-bitfields= "0.3"
 libc= "0.2"
-libfuse-sys = "0.4.0"
+libfuse-sys = {version = "0.4.0", features = ["fuse_35"] }

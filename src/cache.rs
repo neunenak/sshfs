@@ -1,5 +1,7 @@
 use ::libc;
-use ::c2rust_bitfields;
+
+use libfuse_sys::fuse::fuse_args;
+
 extern "C" {
     pub type fuse_pollhandle;
     pub type _IO_wide_data;
@@ -79,13 +81,6 @@ pub struct fuse_opt {
     pub templ: *const libc::c_char,
     pub offset: libc::c_ulong,
     pub value: libc::c_int,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct fuse_args {
-    pub argc: libc::c_int,
-    pub argv: *mut *mut libc::c_char,
-    pub allocated: libc::c_int,
 }
 pub type fuse_opt_proc_t = Option::<
     unsafe extern "C" fn(

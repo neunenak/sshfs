@@ -4,6 +4,10 @@
 #[macro_use]
 extern crate c2rust_bitfields;
 use ::libsshfs::*;
+
+use libfuse_sys::fuse::{fuse_args, fuse_opt_free_args};
+
+
 extern "C" {
     pub type fuse_session;
     pub type fuse_pollhandle;
@@ -30,7 +34,6 @@ extern "C" {
     fn open(__file: *const libc::c_char, __oflag: libc::c_int, _: ...) -> libc::c_int;
     fn time(__timer: *mut time_t) -> time_t;
     fn fstat(__fd: libc::c_int, __buf: *mut stat) -> libc::c_int;
-    fn fuse_opt_free_args(args: *mut fuse_args);
     fn fuse_opt_insert_arg(
         args: *mut fuse_args,
         pos: libc::c_int,
@@ -304,13 +307,6 @@ pub struct fuse_opt {
     pub templ: *const libc::c_char,
     pub offset: libc::c_ulong,
     pub value: libc::c_int,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct fuse_args {
-    pub argc: libc::c_int,
-    pub argv: *mut *mut libc::c_char,
-    pub allocated: libc::c_int,
 }
 pub type fuse_opt_proc_t = Option::<
     unsafe extern "C" fn(
