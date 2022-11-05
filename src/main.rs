@@ -4,7 +4,7 @@
 
 use ::libsshfs::*;
 
-use libfuse_sys::fuse::{fuse_args, fuse_file_info, fuse_opt_free_args};
+use libfuse_sys::fuse::{fuse_opt, fuse_args, fuse_file_info, fuse_opt_free_args, fuse_opt_proc_t};
 
 
 extern "C" {
@@ -300,21 +300,6 @@ extern "C" {
     fn cache_invalidate(path: *const libc::c_char);
     fn cache_get_write_ctr() -> uint64_t;
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct fuse_opt {
-    pub templ: *const libc::c_char,
-    pub offset: libc::c_ulong,
-    pub value: libc::c_int,
-}
-pub type fuse_opt_proc_t = Option::<
-    unsafe extern "C" fn(
-        *mut libc::c_void,
-        *const libc::c_char,
-        libc::c_int,
-        *mut fuse_args,
-    ) -> libc::c_int,
->;
 pub type __uint8_t = libc::c_uchar;
 pub type __uint16_t = libc::c_ushort;
 pub type __uint32_t = libc::c_uint;

@@ -1,6 +1,6 @@
 use ::libc;
 
-use libfuse_sys::fuse::{fuse_file_info, fuse_args};
+use libfuse_sys::fuse::{fuse_file_info, fuse_args, fuse_opt, fuse_opt_proc_t};
 
 extern "C" {
     pub type fuse_pollhandle;
@@ -75,21 +75,6 @@ extern "C" {
     fn g_strfreev(str_array: *mut *mut gchar);
     fn g_free(mem: gpointer);
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct fuse_opt {
-    pub templ: *const libc::c_char,
-    pub offset: libc::c_ulong,
-    pub value: libc::c_int,
-}
-pub type fuse_opt_proc_t = Option::<
-    unsafe extern "C" fn(
-        *mut libc::c_void,
-        *const libc::c_char,
-        libc::c_int,
-        *mut fuse_args,
-    ) -> libc::c_int,
->;
 pub type __uint32_t = libc::c_uint;
 pub type __uint64_t = libc::c_ulong;
 pub type __dev_t = libc::c_ulong;
