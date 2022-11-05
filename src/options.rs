@@ -57,7 +57,11 @@ pub fn sshfs_options() -> Command {
                 .short('v')
                 .help("print ssh replies and messages"),
         )
-        .arg(Arg::new("[user@]host:[dir]").required(true))
+        .arg(
+            Arg::new("connect_string")
+                .value_names(["[user@]host:[dir]"])
+                .required(true),
+        )
         .arg(Arg::new("mountpoint").required(true))
 }
 
