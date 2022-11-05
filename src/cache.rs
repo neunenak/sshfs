@@ -1,6 +1,6 @@
 use ::libc;
 
-use libfuse_sys::fuse::fuse_args;
+use libfuse_sys::fuse::{fuse_file_info, fuse_args};
 
 extern "C" {
     pub type fuse_pollhandle;
@@ -155,27 +155,6 @@ pub union pthread_mutex_t {
     pub __data: __pthread_mutex_s,
     pub __size: [libc::c_char; 40],
     pub __align: libc::c_long,
-}
-#[derive(Copy, Clone, BitfieldStruct)]
-#[repr(C)]
-pub struct fuse_file_info {
-    pub flags: libc::c_int,
-    #[bitfield(name = "writepage", ty = "libc::c_uint", bits = "0..=0")]
-    #[bitfield(name = "direct_io", ty = "libc::c_uint", bits = "1..=1")]
-    #[bitfield(name = "keep_cache", ty = "libc::c_uint", bits = "2..=2")]
-    #[bitfield(name = "flush", ty = "libc::c_uint", bits = "3..=3")]
-    #[bitfield(name = "nonseekable", ty = "libc::c_uint", bits = "4..=4")]
-    #[bitfield(name = "flock_release", ty = "libc::c_uint", bits = "5..=5")]
-    #[bitfield(name = "cache_readdir", ty = "libc::c_uint", bits = "6..=6")]
-    #[bitfield(name = "noflush", ty = "libc::c_uint", bits = "7..=7")]
-    #[bitfield(name = "padding", ty = "libc::c_uint", bits = "8..=31")]
-    #[bitfield(name = "padding2", ty = "libc::c_uint", bits = "32..=63")]
-    pub writepage_direct_io_keep_cache_flush_nonseekable_flock_release_cache_readdir_noflush_padding_padding2: [u8; 8],
-    #[bitfield(padding)]
-    pub c2rust_padding: [u8; 4],
-    pub fh: uint64_t,
-    pub lock_owner: uint64_t,
-    pub poll_events: uint32_t,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]

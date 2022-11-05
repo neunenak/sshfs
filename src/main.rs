@@ -1,11 +1,10 @@
 #![allow(dead_code, mutable_transmutes, non_camel_case_types, non_snake_case, non_upper_case_globals, unused_assignments, unused_mut)]
 #![register_tool(c2rust)]
 #![feature(extern_types, register_tool)]
-#[macro_use]
-extern crate c2rust_bitfields;
+
 use ::libsshfs::*;
 
-use libfuse_sys::fuse::{fuse_args, fuse_opt_free_args};
+use libfuse_sys::fuse::{fuse_args, fuse_file_info, fuse_opt_free_args};
 
 
 extern "C" {
@@ -443,27 +442,6 @@ pub union pthread_cond_t {
     pub __data: __pthread_cond_s,
     pub __size: [libc::c_char; 48],
     pub __align: libc::c_longlong,
-}
-#[derive(Copy, Clone, BitfieldStruct)]
-#[repr(C)]
-pub struct fuse_file_info {
-    pub flags: libc::c_int,
-    #[bitfield(name = "writepage", ty = "libc::c_uint", bits = "0..=0")]
-    #[bitfield(name = "direct_io", ty = "libc::c_uint", bits = "1..=1")]
-    #[bitfield(name = "keep_cache", ty = "libc::c_uint", bits = "2..=2")]
-    #[bitfield(name = "flush", ty = "libc::c_uint", bits = "3..=3")]
-    #[bitfield(name = "nonseekable", ty = "libc::c_uint", bits = "4..=4")]
-    #[bitfield(name = "flock_release", ty = "libc::c_uint", bits = "5..=5")]
-    #[bitfield(name = "cache_readdir", ty = "libc::c_uint", bits = "6..=6")]
-    #[bitfield(name = "noflush", ty = "libc::c_uint", bits = "7..=7")]
-    #[bitfield(name = "padding", ty = "libc::c_uint", bits = "8..=31")]
-    #[bitfield(name = "padding2", ty = "libc::c_uint", bits = "32..=63")]
-    pub writepage_direct_io_keep_cache_flush_nonseekable_flock_release_cache_readdir_noflush_padding_padding2: [u8; 8],
-    #[bitfield(padding)]
-    pub c2rust_padding: [u8; 4],
-    pub fh: uint64_t,
-    pub lock_owner: uint64_t,
-    pub poll_events: uint32_t,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -5567,14 +5545,8 @@ unsafe extern "C" fn sshfs_getattr(
 }
 unsafe extern "C" fn sshfs_truncate_zero(mut path: *const libc::c_char) -> libc::c_int {
     let mut err: libc::c_int = 0;
-    let mut fi: fuse_file_info = fuse_file_info {
-        flags: 0,
-        writepage_direct_io_keep_cache_flush_nonseekable_flock_release_cache_readdir_noflush_padding_padding2: [0; 8],
-        c2rust_padding: [0; 4],
-        fh: 0,
-        lock_owner: 0,
-        poll_events: 0,
-    };
+    let mut fi: fuse_file_info = Default::default();
+
     fi.flags = 0o1 as libc::c_int | 0o1000 as libc::c_int;
     err = sshfs_open(path, &mut fi);
     if err == 0 {
@@ -5596,14 +5568,7 @@ unsafe extern "C" fn sshfs_truncate_shrink(
     let mut res: libc::c_int = 0;
     let mut data: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut offset: off_t = 0;
-    let mut fi: fuse_file_info = fuse_file_info {
-        flags: 0,
-        writepage_direct_io_keep_cache_flush_nonseekable_flock_release_cache_readdir_noflush_padding_padding2: [0; 8],
-        c2rust_padding: [0; 4],
-        fh: 0,
-        lock_owner: 0,
-        poll_events: 0,
-    };
+    let mut fi: fuse_file_info = Default::default();
     data = calloc(size as libc::c_ulong, 1 as libc::c_int as libc::c_ulong)
         as *mut libc::c_char;
     if data.is_null() {
@@ -5664,14 +5629,7 @@ unsafe extern "C" fn sshfs_truncate_extend(
 ) -> libc::c_int {
     let mut res: libc::c_int = 0;
     let mut c: libc::c_char = 0 as libc::c_int as libc::c_char;
-    let mut tmpfi: fuse_file_info = fuse_file_info {
-        flags: 0,
-        writepage_direct_io_keep_cache_flush_nonseekable_flock_release_cache_readdir_noflush_padding_padding2: [0; 8],
-        c2rust_padding: [0; 4],
-        fh: 0,
-        lock_owner: 0,
-        poll_events: 0,
-    };
+    let mut tmpfi: fuse_file_info = Default::default();
     let mut openfi: *mut fuse_file_info = fi;
     if fi.is_null() {
         openfi = &mut tmpfi;
