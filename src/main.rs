@@ -2,10 +2,10 @@
 #![register_tool(c2rust)]
 #![feature(extern_types, register_tool)]
 
+mod id_map;
+
 use ::libsshfs::*;
-
 use libfuse_sys::fuse::{fuse_opt, fuse_args, fuse_file_info, fuse_opt_free_args, fuse_opt_proc_t};
-
 use libc::time_t;
 
 
@@ -1589,31 +1589,6 @@ unsafe extern "C" fn list_empty(mut head: *const list_head) -> libc::c_int {
     return ((*head).next == head as *mut list_head) as libc::c_int;
 }
 #[inline]
-unsafe extern "C" fn translate_id(
-    mut id: *mut u32,
-    mut map: *mut GHashTable,
-) -> libc::c_int {
-    let mut id_p: gpointer = 0 as *mut libc::c_void;
-    if g_hash_table_lookup_extended(
-        map,
-        *id as gulong as gpointer as gconstpointer,
-        0 as *mut gpointer,
-        &mut id_p,
-    ) != 0
-    {
-        *id = id_p as gulong as guint;
-        return 0 as libc::c_int;
-    }
-    match sshfs.nomap {
-        1 => return -(1 as libc::c_int),
-        0 => return 0 as libc::c_int,
-        _ => {
-            fprintf(stderr, b"internal error\n\0" as *const u8 as *const libc::c_char);
-            abort();
-        }
-    };
-}
-#[inline]
 unsafe extern "C" fn buf_init(mut buf: *mut buffer, mut size: size_t) {
     if size != 0 {
         let ref mut fresh8 = (*buf).p;
@@ -1947,12 +1922,12 @@ unsafe extern "C" fn buf_get_attrs(
         }
     }
     if sshfs.idmap == IDMAP_FILE as libc::c_int && !(sshfs.uid_map).is_null() {
-        if translate_id(&mut uid, sshfs.uid_map) == -(1 as libc::c_int) {
+        if id_map::translate_id(&mut uid, "uid", sshfs.nomap) == -(1 as libc::c_int) {
             return -(1 as libc::c_int);
         }
     }
     if sshfs.idmap == IDMAP_FILE as libc::c_int && !(sshfs.gid_map).is_null() {
-        if translate_id(&mut gid, sshfs.gid_map) == -(1 as libc::c_int) {
+        if id_map::translate_id(&mut gid, "gid", sshfs.nomap) == -(1 as libc::c_int) {
             return -(1 as libc::c_int);
         }
     }
@@ -4425,12 +4400,12 @@ unsafe extern "C" fn sshfs_chown(
         }
     }
     if sshfs.idmap == IDMAP_FILE as libc::c_int && !(sshfs.r_uid_map).is_null() {
-        if translate_id(&mut uid, sshfs.r_uid_map) == -(1 as libc::c_int) {
+        if id_map::translate_id(&mut uid, "ruid", sshfs.nomap) == -(1 as libc::c_int) {
             return -(1 as libc::c_int);
         }
     }
     if sshfs.idmap == IDMAP_FILE as libc::c_int && !(sshfs.r_gid_map).is_null() {
-        if translate_id(&mut gid, sshfs.r_gid_map) == -(1 as libc::c_int) {
+        if id_map::translate_id(&mut gid, "rgid", sshfs.nomap) == -(1 as libc::c_int) {
             return -(1 as libc::c_int);
         }
     }
@@ -6311,213 +6286,6 @@ unsafe extern "C" fn ssh_connect() -> libc::c_int {
     }
     return 0 as libc::c_int;
 }
-unsafe extern "C" fn parse_idmap_line(
-    mut line: *mut libc::c_char,
-    mut filename: *const libc::c_char,
-    lineno: libc::c_uint,
-    mut ret_id: *mut u32,
-    mut ret_name: *mut *mut libc::c_char,
-    eof: libc::c_int,
-) {
-    let mut p: *mut libc::c_char = line;
-    p = strrchr(line, '\n' as i32);
-    if !p.is_null() {
-        *p = '\0' as i32 as libc::c_char;
-    } else if eof == 0 {
-        fprintf(
-            stderr,
-            b"%s:%u: line too long\n\0" as *const u8 as *const libc::c_char,
-            filename,
-            lineno,
-        );
-        exit(1 as libc::c_int);
-    }
-    let mut tokens: [*mut libc::c_char; 3] = [0 as *mut libc::c_char; 3];
-    let mut tok: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut i: libc::c_int = 0;
-    i = 0 as libc::c_int;
-    loop {
-        tok = strsep(&mut line, b":\0" as *const u8 as *const libc::c_char);
-        if !(!tok.is_null() && i < 3 as libc::c_int) {
-            break;
-        }
-        tokens[i as usize] = tok;
-        i += 1;
-    }
-    let mut name_tok: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut id_tok: *mut libc::c_char = 0 as *mut libc::c_char;
-    if i == 2 as libc::c_int {
-        name_tok = tokens[0 as libc::c_int as usize];
-        id_tok = tokens[1 as libc::c_int as usize];
-    } else if i >= 3 as libc::c_int {
-        name_tok = tokens[0 as libc::c_int as usize];
-        id_tok = tokens[2 as libc::c_int as usize];
-    } else {
-        fprintf(
-            stderr,
-            b"%s:%u: unknown format\n\0" as *const u8 as *const libc::c_char,
-            filename,
-            lineno,
-        );
-        exit(1 as libc::c_int);
-    }
-    *__errno_location() = 0 as libc::c_int;
-    let mut remote_id: u32 = strtoul(
-        id_tok,
-        0 as *mut *mut libc::c_char,
-        10 as libc::c_int,
-    ) as u32;
-    if *__errno_location() != 0 {
-        fprintf(
-            stderr,
-            b"Invalid id number on line %u of '%s': %s\n\0" as *const u8
-                as *const libc::c_char,
-            lineno,
-            filename,
-            strerror(*__errno_location()),
-        );
-        exit(1 as libc::c_int);
-    }
-    *ret_name = strdup(name_tok);
-    *ret_id = remote_id;
-}
-unsafe extern "C" fn read_id_map(
-    mut file: *mut libc::c_char,
-    mut map_fn: Option::<unsafe extern "C" fn(*mut libc::c_char) -> *mut u32>,
-    mut name_id: *const libc::c_char,
-    mut idmap: *mut *mut GHashTable,
-    mut r_idmap: *mut *mut GHashTable,
-) {
-    *idmap = g_hash_table_new(None, None);
-    *r_idmap = g_hash_table_new(None, None);
-    let mut fp: *mut FILE = 0 as *mut FILE;
-    let mut line: [libc::c_char; 2048] = [0; 2048];
-    let mut lineno: libc::c_uint = 0 as libc::c_int as libc::c_uint;
-    let mut local_uid: uid_t = getuid();
-    fp = fopen(file, b"r\0" as *const u8 as *const libc::c_char);
-    if fp.is_null() {
-        fprintf(
-            stderr,
-            b"failed to open '%s': %s\n\0" as *const u8 as *const libc::c_char,
-            file,
-            strerror(*__errno_location()),
-        );
-        exit(1 as libc::c_int);
-    }
-    let mut st: stat = stat {
-        st_dev: 0,
-        st_ino: 0,
-        st_nlink: 0,
-        st_mode: 0,
-        st_uid: 0,
-        st_gid: 0,
-        __pad0: 0,
-        st_rdev: 0,
-        st_size: 0,
-        st_blksize: 0,
-        st_blocks: 0,
-        st_atim: timespec { tv_sec: 0, tv_nsec: 0 },
-        st_mtim: timespec { tv_sec: 0, tv_nsec: 0 },
-        st_ctim: timespec { tv_sec: 0, tv_nsec: 0 },
-        __glibc_reserved: [0; 3],
-    };
-    if fstat(fileno(fp), &mut st) == -(1 as libc::c_int) {
-        fprintf(
-            stderr,
-            b"failed to stat '%s': %s\n\0" as *const u8 as *const libc::c_char,
-            file,
-            strerror(*__errno_location()),
-        );
-        exit(1 as libc::c_int);
-    }
-    if st.st_uid != local_uid {
-        fprintf(
-            stderr,
-            b"'%s' is not owned by uid %lu\n\0" as *const u8 as *const libc::c_char,
-            file,
-            local_uid as libc::c_ulong,
-        );
-        exit(1 as libc::c_int);
-    }
-    if st.st_mode & (0o200 as libc::c_int >> 3 as libc::c_int) as libc::c_uint != 0
-        || st.st_mode
-            & (0o200 as libc::c_int >> 3 as libc::c_int >> 3 as libc::c_int)
-                as libc::c_uint != 0
-    {
-        fprintf(
-            stderr,
-            b"'%s' is writable by other users\n\0" as *const u8 as *const libc::c_char,
-            file,
-        );
-        exit(1 as libc::c_int);
-    }
-    while !(fgets(line.as_mut_ptr(), 2048 as libc::c_int, fp)).is_null() {
-        lineno = lineno.wrapping_add(1);
-        let mut remote_id: u32 = 0;
-        let mut name: *mut libc::c_char = 0 as *mut libc::c_char;
-        if line[0 as libc::c_int as usize] as libc::c_int == '\n' as i32
-            || line[0 as libc::c_int as usize] as libc::c_int == '\0' as i32
-        {
-            continue;
-        }
-        parse_idmap_line(
-            line.as_mut_ptr(),
-            file,
-            lineno,
-            &mut remote_id,
-            &mut name,
-            feof(fp),
-        );
-        let mut local_id: *mut u32 = map_fn
-            .expect("non-null function pointer")(name);
-        if local_id.is_null() {
-            if sshfs.debug != 0 {
-                fprintf(
-                    stderr,
-                    b"%s(%u): no local %s\n\0" as *const u8 as *const libc::c_char,
-                    name,
-                    remote_id,
-                    name_id,
-                );
-            }
-            free(name as *mut libc::c_void);
-        } else {
-            if sshfs.debug != 0 {
-                fprintf(
-                    stderr,
-                    b"%s: remote %s %u => local %s %u\n\0" as *const u8
-                        as *const libc::c_char,
-                    name,
-                    name_id,
-                    remote_id,
-                    name_id,
-                    *local_id,
-                );
-            }
-            g_hash_table_insert(
-                *idmap,
-                remote_id as gulong as gpointer,
-                *local_id as gulong as gpointer,
-            );
-            g_hash_table_insert(
-                *r_idmap,
-                *local_id as gulong as gpointer,
-                remote_id as gulong as gpointer,
-            );
-            free(name as *mut libc::c_void);
-            free(local_id as *mut libc::c_void);
-        }
-    }
-    if fclose(fp) == -(1 as libc::c_int) {
-        fprintf(
-            stderr,
-            b"failed to close '%s': %s\0" as *const u8 as *const libc::c_char,
-            file,
-            strerror(*__errno_location()),
-        );
-        exit(1 as libc::c_int);
-    }
-}
 unsafe extern "C" fn username_to_uid(mut name: *mut libc::c_char) -> *mut u32 {
     *__errno_location() = 0 as libc::c_int;
     let mut pw: *mut passwd = getpwnam(name);
@@ -6571,30 +6339,6 @@ unsafe extern "C" fn groupname_to_gid(mut name: *mut libc::c_char) -> *mut u32 {
     }
     *r = (*gr).gr_gid;
     return r;
-}
-#[inline]
-unsafe extern "C" fn load_uid_map() {
-    read_id_map(
-        sshfs.uid_file,
-        Some(
-            username_to_uid as unsafe extern "C" fn(*mut libc::c_char) -> *mut u32,
-        ),
-        b"uid\0" as *const u8 as *const libc::c_char,
-        &mut sshfs.uid_map,
-        &mut sshfs.r_uid_map,
-    );
-}
-#[inline]
-unsafe extern "C" fn load_gid_map() {
-    read_id_map(
-        sshfs.gid_file,
-        Some(
-            groupname_to_gid as unsafe extern "C" fn(*mut libc::c_char) -> *mut u32,
-        ),
-        b"gid\0" as *const u8 as *const libc::c_char,
-        &mut sshfs.gid_map,
-        &mut sshfs.r_gid_map,
-    );
 }
 unsafe fn main_0(
     mut argc: libc::c_int,
@@ -6726,20 +6470,8 @@ unsafe fn main_0(
         sshfs.gid_map = 0 as *mut GHashTable;
         sshfs.r_uid_map = 0 as *mut GHashTable;
         sshfs.r_gid_map = 0 as *mut GHashTable;
-        if (sshfs.uid_file).is_null() && (sshfs.gid_file).is_null() {
-            fprintf(
-                stderr,
-                b"need a uidfile or gidfile with idmap=file\n\0" as *const u8
-                    as *const libc::c_char,
-            );
-            exit(1 as libc::c_int);
-        }
-        if !(sshfs.uid_file).is_null() {
-            load_uid_map();
-        }
-        if !(sshfs.gid_file).is_null() {
-            load_gid_map();
-        }
+
+        id_map::handle_id_maps(sshfs.uid_file, sshfs.gid_file);
     }
     free(sshfs.uid_file as *mut libc::c_void);
     free(sshfs.gid_file as *mut libc::c_void);
