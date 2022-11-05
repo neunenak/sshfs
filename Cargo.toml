@@ -4,15 +4,10 @@ authors = ["SSHFS Maintainers"]
 version = "0.1.0"
 publish = false
 edition = "2021"
-autobins = false
 
 [lib]
-name = "rust_output"
-path = "lib.rs"
+name = "libsshfs"
 crate-type = ["staticlib", "rlib"]
-[[bin]]
-path = "src/sshfs.rs"
-name = "sshfs"
 
 [dependencies]
 c2rust-bitfields= "0.3"

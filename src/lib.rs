@@ -6,16 +6,14 @@
 #![allow(unused_assignments)]
 #![allow(unused_mut)]
 #![feature(extern_types)]
-#![feature(label_break_value)]
 #![feature(register_tool)]
 #![register_tool(c2rust)]
 
 #[macro_use]
 extern crate c2rust_bitfields;
 extern crate libc;
-pub mod src {
+
 pub mod cache;
 pub mod test {
-pub mod wrong_command;
-} // mod test
-} // mod src
+    pub mod wrong_command;
+}

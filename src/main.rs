@@ -3,7 +3,7 @@
 #![feature(extern_types, register_tool)]
 #[macro_use]
 extern crate c2rust_bitfields;
-use ::rust_output::*;
+use ::libsshfs::*;
 extern "C" {
     pub type fuse_session;
     pub type fuse_pollhandle;
