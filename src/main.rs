@@ -295,8 +295,6 @@ extern "C" {
     fn g_str_hash(v: gconstpointer) -> guint;
     fn g_strdup(str: *const gchar) -> *mut gchar;
     fn g_strdup_printf(format: *const gchar, _: ...) -> *mut gchar;
-    fn getpwnam(__name: *const libc::c_char) -> *mut passwd;
-    fn getgrnam(__name: *const libc::c_char) -> *mut group;
     fn cache_wrap(oper: *mut fuse_operations) -> *mut fuse_operations;
     fn cache_parse_options(args: *mut fuse_args) -> libc::c_int;
     fn cache_add_attr(path: *const libc::c_char, stbuf: *const stat, wrctr: u64);
@@ -951,25 +949,6 @@ pub type GHashTable = _GHashTable;
 pub type GHRFunc = Option::<
     unsafe extern "C" fn(gpointer, gpointer, gpointer) -> gboolean,
 >;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct passwd {
-    pub pw_name: *mut libc::c_char,
-    pub pw_passwd: *mut libc::c_char,
-    pub pw_uid: __uid_t,
-    pub pw_gid: __gid_t,
-    pub pw_gecos: *mut libc::c_char,
-    pub pw_dir: *mut libc::c_char,
-    pub pw_shell: *mut libc::c_char,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct group {
-    pub gr_name: *mut libc::c_char,
-    pub gr_passwd: *mut libc::c_char,
-    pub gr_gid: __gid_t,
-    pub gr_mem: *mut *mut libc::c_char,
-}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct conn {
