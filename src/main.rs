@@ -982,7 +982,7 @@ pub struct list_head {
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct request {
+pub struct Request {
     pub want_reply: libc::c_uint,
     pub ready: sem_t,
     pub reply_type: u8,
@@ -997,7 +997,7 @@ pub struct request {
     pub list: list_head,
     pub conn: *mut conn,
 }
-pub type request_func = Option::<unsafe extern "C" fn(*mut request) -> ()>;
+pub type request_func = Option::<unsafe extern "C" fn(*mut Request) -> ()>;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct sshfs_io {
@@ -2485,7 +2485,7 @@ unsafe extern "C" fn sftp_read(
     buf_free(&mut buf2);
     return res;
 }
-unsafe extern "C" fn request_free(mut req: *mut request) {
+unsafe extern "C" fn request_free(mut req: *mut Request) {
     if ((*req).end_func).is_some() {
         ((*req).end_func).expect("non-null function pointer")(req);
     }
@@ -2525,7 +2525,7 @@ unsafe extern "C" fn chunk_put_locked(mut chunk: *mut read_chunk) {
 }
 unsafe extern "C" fn clean_req(
     mut key: *mut libc::c_void,
-    mut req: *mut request,
+    mut req: *mut Request,
     mut user_data: gpointer,
 ) -> libc::c_int {
     let mut conn: *mut conn = user_data as *mut conn;
@@ -2548,7 +2548,7 @@ unsafe extern "C" fn process_one_request(mut conn: *mut conn) -> libc::c_int {
         size: 0,
     };
     let mut type_0: u8 = 0;
-    let mut req: *mut request = 0 as *mut request;
+    let mut req: *mut Request = 0 as *mut Request;
     let mut id: u32 = 0;
     buf_init(&mut buf, 0 as libc::c_int as size_t);
     res = sftp_read(conn, &mut type_0, &mut buf);
@@ -2560,7 +2560,7 @@ unsafe extern "C" fn process_one_request(mut conn: *mut conn) -> libc::c_int {
     }
     pthread_mutex_lock(&mut sshfs.lock);
     req = g_hash_table_lookup(sshfs.reqtab, id as gulong as gpointer as gconstpointer)
-        as *mut request;
+        as *mut Request;
     if req.is_null() {
         fprintf(
             stderr,
@@ -2653,7 +2653,7 @@ unsafe extern "C" fn process_requests(
             Option::<
                 unsafe extern "C" fn(
                     *mut libc::c_void,
-                    *mut request,
+                    *mut Request,
                     gpointer,
                 ) -> libc::c_int,
             >,
@@ -2663,7 +2663,7 @@ unsafe extern "C" fn process_requests(
                 clean_req
                     as unsafe extern "C" fn(
                         *mut libc::c_void,
-                        *mut request,
+                        *mut Request,
                         gpointer,
                     ) -> libc::c_int,
             ),
@@ -3164,7 +3164,7 @@ unsafe extern "C" fn sshfs_init(
     return 0 as *mut libc::c_void;
 }
 unsafe extern "C" fn sftp_request_wait(
-    mut req: *mut request,
+    mut req: *mut Request,
     mut type_0: u8,
     mut expect_type: u8,
     mut outbuf: *mut buffer,
@@ -3243,13 +3243,13 @@ unsafe extern "C" fn sftp_request_send(
     mut end_func: request_func,
     mut want_reply: libc::c_int,
     mut data: *mut libc::c_void,
-    mut reqp: *mut *mut request,
+    mut reqp: *mut *mut Request,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
     let mut id: u32 = 0;
-    let mut req: *mut request = ({
+    let mut req: *mut Request = ({
         let mut __n: gsize = 1 as libc::c_int as gsize;
-        let mut __s: gsize = ::std::mem::size_of::<request>() as libc::c_ulong;
+        let mut __s: gsize = ::std::mem::size_of::<Request>() as libc::c_ulong;
         let mut __p: gpointer = 0 as *mut libc::c_void;
         if __s == 1 as libc::c_int as libc::c_ulong {
             __p = g_malloc0(__n);
@@ -3266,7 +3266,7 @@ unsafe extern "C" fn sftp_request_send(
             __p = g_malloc0_n(__n, __s);
         }
         __p
-    }) as *mut request;
+    }) as *mut Request;
     (*req).want_reply = want_reply as libc::c_uint;
     let ref mut fresh25 = (*req).end_func;
     *fresh25 = end_func;
@@ -3345,7 +3345,7 @@ unsafe extern "C" fn sftp_request_iov(
     mut outbuf: *mut buffer,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
-    let mut req: *mut request = 0 as *mut request;
+    let mut req: *mut Request = 0 as *mut Request;
     err = sftp_request_send(
         conn,
         type_0,
@@ -3590,7 +3590,7 @@ unsafe extern "C" fn sshfs_readlink(
 }
 unsafe extern "C" fn sftp_readdir_send(
     mut conn: *mut conn,
-    mut req: *mut *mut request,
+    mut req: *mut *mut Request,
     mut handle: *mut buffer,
 ) -> libc::c_int {
     let mut iov: iovec = iovec {
@@ -3610,7 +3610,7 @@ unsafe extern "C" fn sftp_readdir_send(
         req,
     );
 }
-unsafe extern "C" fn sshfs_req_pending(mut req: *mut request) -> libc::c_int {
+unsafe extern "C" fn sshfs_req_pending(mut req: *mut Request) -> libc::c_int {
     if !(g_hash_table_lookup(
         sshfs.reqtab,
         (*req).id as gulong as gpointer as gconstpointer,
@@ -3649,7 +3649,7 @@ unsafe extern "C" fn sftp_readdir_async(
         );
     }
     while done == 0 || outstanding != 0 {
-        let mut req: *mut request = 0 as *mut request;
+        let mut req: *mut Request = 0 as *mut Request;
         let mut name: buffer = buffer {
             p: 0 as *mut u8,
             len: 0,
@@ -3672,7 +3672,7 @@ unsafe extern "C" fn sftp_readdir_async(
         }
         let mut first: *mut GList = 0 as *mut GList;
         first = g_list_first(list);
-        req = (*first).data as *mut request;
+        req = (*first).data as *mut Request;
         list = g_list_delete_link(list, first);
         outstanding -= 1;
         if done != 0 {
@@ -4375,7 +4375,7 @@ unsafe extern "C" fn sshfs_open_common(
         __glibc_reserved: [0; 3],
     };
     let mut sf: *mut sshfs_file = 0 as *mut sshfs_file;
-    let mut open_req: *mut request = 0 as *mut request;
+    let mut open_req: *mut Request = 0 as *mut Request;
     let mut ce: *mut conntab_entry = 0 as *mut conntab_entry;
     let mut pflags: u32 = 0 as libc::c_int as u32;
     let mut iov: iovec = iovec {
@@ -4665,7 +4665,7 @@ unsafe extern "C" fn sshfs_release(
     g_free(sf as gpointer);
     return 0 as libc::c_int;
 }
-unsafe extern "C" fn sshfs_read_end(mut req: *mut request) {
+unsafe extern "C" fn sshfs_read_end(mut req: *mut Request) {
     let mut rreq: *mut read_req = (*req).data as *mut read_req;
     if (*req).error != 0 {
         (*rreq).res = (*req).error as ssize_t;
@@ -4708,7 +4708,7 @@ unsafe extern "C" fn sshfs_read_end(mut req: *mut request) {
         pthread_cond_broadcast(&mut (*(*rreq).sio).finished);
     }
 }
-unsafe extern "C" fn sshfs_read_begin(mut req: *mut request) {
+unsafe extern "C" fn sshfs_read_begin(mut req: *mut Request) {
     let mut rreq: *mut read_req = (*req).data as *mut read_req;
     let ref mut fresh43 = (*(*rreq).sio).num_reqs;
     *fresh43 += 1;
@@ -4796,11 +4796,11 @@ unsafe extern "C" fn sshfs_send_read(
             5 as libc::c_int as u8,
             iov.as_mut_ptr(),
             1 as libc::c_int as size_t,
-            Some(sshfs_read_begin as unsafe extern "C" fn(*mut request) -> ()),
-            Some(sshfs_read_end as unsafe extern "C" fn(*mut request) -> ()),
+            Some(sshfs_read_begin as unsafe extern "C" fn(*mut Request) -> ()),
+            Some(sshfs_read_end as unsafe extern "C" fn(*mut Request) -> ()),
             0 as libc::c_int,
             rreq as *mut libc::c_void,
-            0 as *mut *mut request,
+            0 as *mut *mut Request,
         );
         buf_free(&mut buf);
         if err != 0 {
@@ -4997,11 +4997,11 @@ unsafe extern "C" fn sshfs_read(
         return sshfs_async_read(sf, rbuf, size, offset)
     };
 }
-unsafe extern "C" fn sshfs_write_begin(mut req: *mut request) {
+unsafe extern "C" fn sshfs_write_begin(mut req: *mut Request) {
     let mut sf: *mut sshfs_file = (*req).data as *mut sshfs_file;
     list_add(&mut (*req).list, &mut (*sf).write_reqs);
 }
-unsafe extern "C" fn sshfs_write_end(mut req: *mut request) {
+unsafe extern "C" fn sshfs_write_end(mut req: *mut Request) {
     let mut serr: u32 = 0;
     let mut sf: *mut sshfs_file = (*req).data as *mut sshfs_file;
     if (*req).error != 0 {
@@ -5053,11 +5053,11 @@ unsafe extern "C" fn sshfs_async_write(
             6 as libc::c_int as u8,
             iov.as_mut_ptr(),
             2 as libc::c_int as size_t,
-            Some(sshfs_write_begin as unsafe extern "C" fn(*mut request) -> ()),
-            Some(sshfs_write_end as unsafe extern "C" fn(*mut request) -> ()),
+            Some(sshfs_write_begin as unsafe extern "C" fn(*mut Request) -> ()),
+            Some(sshfs_write_end as unsafe extern "C" fn(*mut Request) -> ()),
             0 as libc::c_int,
             sf as *mut libc::c_void,
-            0 as *mut *mut request,
+            0 as *mut *mut Request,
         );
         buf_free(&mut buf);
         size = (size as libc::c_ulong).wrapping_sub(bsize) as size_t as size_t;
@@ -5066,12 +5066,12 @@ unsafe extern "C" fn sshfs_async_write(
     }
     return err;
 }
-unsafe extern "C" fn sshfs_sync_write_begin(mut req: *mut request) {
+unsafe extern "C" fn sshfs_sync_write_begin(mut req: *mut Request) {
     let mut sio: *mut sshfs_io = (*req).data as *mut sshfs_io;
     let ref mut fresh51 = (*sio).num_reqs;
     *fresh51 += 1;
 }
-unsafe extern "C" fn sshfs_sync_write_end(mut req: *mut request) {
+unsafe extern "C" fn sshfs_sync_write_end(mut req: *mut Request) {
     let mut serr: u32 = 0;
     let mut sio: *mut sshfs_io = (*req).data as *mut sshfs_io;
     if (*req).error != 0 {
@@ -5149,11 +5149,11 @@ unsafe extern "C" fn sshfs_sync_write(
             6 as libc::c_int as u8,
             iov.as_mut_ptr(),
             2 as libc::c_int as size_t,
-            Some(sshfs_sync_write_begin as unsafe extern "C" fn(*mut request) -> ()),
-            Some(sshfs_sync_write_end as unsafe extern "C" fn(*mut request) -> ()),
+            Some(sshfs_sync_write_begin as unsafe extern "C" fn(*mut Request) -> ()),
+            Some(sshfs_sync_write_end as unsafe extern "C" fn(*mut Request) -> ()),
             0 as libc::c_int,
             &mut sio as *mut sshfs_io as *mut libc::c_void,
-            0 as *mut *mut request,
+            0 as *mut *mut Request,
         );
         buf_free(&mut buf);
         size = (size as libc::c_ulong).wrapping_sub(bsize) as size_t as size_t;
