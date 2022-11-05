@@ -75,8 +75,6 @@ extern "C" {
     fn g_strfreev(str_array: *mut *mut gchar);
     fn g_free(mem: gpointer);
 }
-pub type __uint32_t = libc::c_uint;
-pub type __uint64_t = libc::c_ulong;
 pub type __dev_t = libc::c_ulong;
 pub type __uid_t = libc::c_uint;
 pub type __gid_t = libc::c_uint;
@@ -93,8 +91,6 @@ pub type __fsblkcnt64_t = libc::c_ulong;
 pub type __fsfilcnt64_t = libc::c_ulong;
 pub type __ssize_t = libc::c_long;
 pub type __syscall_slong_t = libc::c_long;
-pub type uint32_t = __uint32_t;
-pub type uint64_t = __uint64_t;
 pub type dev_t = __dev_t;
 pub type gid_t = __gid_t;
 pub type mode_t = __mode_t;
@@ -440,7 +436,7 @@ pub struct fuse_operations {
         ) -> libc::c_int,
     >,
     pub bmap: Option::<
-        unsafe extern "C" fn(*const libc::c_char, size_t, *mut uint64_t) -> libc::c_int,
+        unsafe extern "C" fn(*const libc::c_char, size_t, *mut u64) -> libc::c_int,
     >,
     pub ioctl: Option::<
         unsafe extern "C" fn(
@@ -564,7 +560,7 @@ pub struct cache {
     pub table: *mut GHashTable,
     pub lock: pthread_mutex_t,
     pub last_cleaned: time_t,
-    pub write_ctr: uint64_t,
+    pub write_ctr: u64,
 }
 pub type gpointer = *mut libc::c_void;
 #[derive(Copy, Clone)]
@@ -612,7 +608,7 @@ pub struct readdir_handle {
     pub buf: *mut libc::c_void,
     pub filler: fuse_fill_dir_t,
     pub dir: *mut GPtrArray,
-    pub wrctr: uint64_t,
+    pub wrctr: u64,
 }
 static mut cache: cache = cache {
     on: 0,
@@ -811,7 +807,7 @@ unsafe extern "C" fn cache_get(mut path: *const libc::c_char) -> *mut node {
 pub unsafe extern "C" fn cache_add_attr(
     mut path: *const libc::c_char,
     mut stbuf: *const stat,
-    mut wrctr: uint64_t,
+    mut wrctr: u64,
 ) {
     let mut node: *mut node = 0 as *mut node;
     pthread_mutex_lock(&mut cache.lock);
@@ -898,8 +894,8 @@ unsafe extern "C" fn cache_get_attr(
     return err;
 }
 #[no_mangle]
-pub unsafe extern "C" fn cache_get_write_ctr() -> uint64_t {
-    let mut res: uint64_t = 0;
+pub unsafe extern "C" fn cache_get_write_ctr() -> u64 {
+    let mut res: u64 = 0;
     pthread_mutex_lock(&mut cache.lock);
     res = cache.write_ctr;
     pthread_mutex_unlock(&mut cache.lock);
@@ -921,7 +917,7 @@ unsafe extern "C" fn cache_getattr(
 ) -> libc::c_int {
     let mut err: libc::c_int = cache_get_attr(path, stbuf);
     if err != 0 {
-        let mut wrctr: uint64_t = cache_get_write_ctr();
+        let mut wrctr: u64 = cache_get_write_ctr();
         err = ((*cache.next_oper).getattr)
             .expect("non-null function pointer")(path, stbuf, fi);
         if err == 0 {
