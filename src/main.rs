@@ -1264,11 +1264,11 @@ static mut sshfs: sshfs = sshfs {
     total_rtt: 0,
     num_connect: 0,
 };
-static mut sshfs_opts: [fuse_opt; 56] = [fuse_opt {
+static mut sshfs_opts: [fuse_opt; 55] = [fuse_opt {
     templ: 0 as *const libc::c_char,
     offset: 0,
     value: 0,
-}; 56];
+}; 55];
 static mut workaround_opts: [fuse_opt; 17] = [
     {
         let mut init = fuse_opt {
@@ -6650,14 +6650,6 @@ unsafe extern "C" fn run_static_initializers() {
             let mut init = fuse_opt {
                 templ: b"--help\0" as *const u8 as *const libc::c_char,
                 offset: 120 as libc::c_ulong,
-                value: 1 as libc::c_int,
-            };
-            init
-        },
-        {
-            let mut init = fuse_opt {
-                templ: b"--version\0" as *const u8 as *const libc::c_char,
-                offset: 116 as libc::c_ulong,
                 value: 1 as libc::c_int,
             };
             init
