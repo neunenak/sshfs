@@ -2,6 +2,8 @@
 #![register_tool(c2rust)]
 #![feature(extern_types, register_tool)]
 
+const SSHFS_VERSION: &'static str = "4.0.0-alpha0";
+
 mod help;
 mod id_map;
 mod ssh_opt;
@@ -6160,16 +6162,11 @@ unsafe fn main_0(
         exit(1 as libc::c_int);
     }
     if sshfs.show_version != 0 {
-        printf(
-            b"SSHFS version %s\n\0" as *const u8 as *const libc::c_char,
-            b"3.7.3\0" as *const u8 as *const libc::c_char,
-        );
-        printf(
-            b"FUSE library version %s\n\0" as *const u8 as *const libc::c_char,
-            fuse_pkgversion(),
-        );
+        println!("SSHFS version {}", SSHFS_VERSION);
+        let fuse_package_version = unsafe { CStr::from_ptr(fuse_pkgversion()) };
+        println!("FUSE library version {}", fuse_package_version.to_string_lossy());
         fuse_lowlevel_version();
-        exit(0 as libc::c_int);
+        std::process::exit(0);
     }
     if sshfs.show_help != 0 {
         help::show_help(&mut args);
@@ -6206,11 +6203,7 @@ unsafe fn main_0(
     free(sshfs.uid_file as *mut libc::c_void);
     free(sshfs.gid_file as *mut libc::c_void);
     if sshfs.debug != 0 {
-        fprintf(
-            stderr,
-            b"SSHFS version %s\n\0" as *const u8 as *const libc::c_char,
-            b"3.7.3\0" as *const u8 as *const libc::c_char,
-        );
+        eprintln!("SSHFS version {}", SSHFS_VERSION);
     }
     if sshfs.passive != 0 {
         sshfs.foreground = 1 as libc::c_int;
