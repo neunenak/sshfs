@@ -1472,11 +1472,7 @@ unsafe extern "C" fn buf_init(mut buf: *mut buffer, mut size: size_t) {
         let ref mut fresh8 = (*buf).p;
         *fresh8 = malloc(size) as *mut u8;
         if ((*buf).p).is_null() {
-            fprintf(
-                stderr,
-                b"sshfs: memory allocation failed\n\0" as *const u8
-                    as *const libc::c_char,
-            );
+            eprintln!("sshfs: memory allocation failed");
             abort();
         }
     } else {
@@ -1628,10 +1624,10 @@ unsafe extern "C" fn buf_check_get(
     mut len: size_t,
 ) -> libc::c_int {
     if ((*buf).len).wrapping_add(len) > (*buf).size {
-        fprintf(stderr, b"buffer too short\n\0" as *const u8 as *const libc::c_char);
-        return -(1 as libc::c_int);
+        eprintln!("buffer too short");
+        return -1;
     } else {
-        return 0 as libc::c_int
+        return 0
     };
 }
 #[inline]
@@ -1975,11 +1971,8 @@ unsafe extern "C" fn pty_expect_loop(mut conn: *mut conn) -> libc::c_int {
             return -(1 as libc::c_int);
         }
         if res == 0 as libc::c_int {
-            fprintf(
-                stderr,
-                b"Timeout waiting for prompt\n\0" as *const u8 as *const libc::c_char,
-            );
-            return -(1 as libc::c_int);
+            eprintln!("Timeout waiting for prompt");
+            return -1;
         }
         if fds[0 as libc::c_int as usize].revents != 0 {
             break;
@@ -1994,11 +1987,8 @@ unsafe extern "C" fn pty_expect_loop(mut conn: *mut conn) -> libc::c_int {
             return -(1 as libc::c_int);
         }
         if res == 0 as libc::c_int {
-            fprintf(
-                stderr,
-                b"EOF while waiting for prompt\n\0" as *const u8 as *const libc::c_char,
-            );
-            return -(1 as libc::c_int);
+            eprintln!("EOF while waiting for prompt");
+            return -1;
         }
         buf[len as usize] = c;
         len += 1;
@@ -2323,8 +2313,8 @@ unsafe extern "C" fn do_write(
             return -(1 as libc::c_int);
         } else {
             if res == 0 as libc::c_int {
-                fprintf(stderr, b"zero write\n\0" as *const u8 as *const libc::c_char);
-                return -(1 as libc::c_int);
+                eprintln!("zero write");
+                return -1;
             }
         }
         loop {
@@ -2441,12 +2431,8 @@ unsafe extern "C" fn do_read(mut conn: *mut conn, mut buf: *mut buffer) -> libc:
             return -(1 as libc::c_int);
         } else {
             if res == 0 as libc::c_int {
-                fprintf(
-                    stderr,
-                    b"remote host has disconnected\n\0" as *const u8
-                        as *const libc::c_char,
-                );
-                return -(1 as libc::c_int);
+                eprintln!("remote host has disconnected");
+                return -1;
             }
         }
         size = (size as libc::c_ulong).wrapping_sub(res as libc::c_ulong) as size_t
@@ -6142,7 +6128,7 @@ unsafe fn main_0(
         help::show_help(&mut args);
     } else {
         if (sshfs.host).is_null() {
-            fprintf(stderr, b"missing host\n\0" as *const u8 as *const libc::c_char);
+            eprintln!("missing host");
             fprintf(
                 stderr,
                 b"see `%s -h' for usage\n\0" as *const u8 as *const libc::c_char,
@@ -6151,11 +6137,7 @@ unsafe fn main_0(
             exit(1);
         } else {
             if (sshfs.mountpoint).is_null() {
-                fprintf(
-                    stderr,
-                    b"error: no mountpoint specified\n\0" as *const u8
-                        as *const libc::c_char,
-                );
+                eprintln!("error: no mountpoint specified");
                 fprintf(
                     stderr,
                     b"see `%s -h' for usage\n\0" as *const u8 as *const libc::c_char,
@@ -6202,36 +6184,20 @@ unsafe fn main_0(
     }
     if sshfs.max_conns > 1 as libc::c_int {
         if sshfs.buflimit_workaround != 0 {
-            fprintf(
-                stderr,
-                b"buflimit workaround is not supported with parallel connections\n\0"
-                    as *const u8 as *const libc::c_char,
-            );
-            exit(1 as libc::c_int);
+            eprintln!("buflimit workaround is not supported with parallel connections");
+            exit(1);
         }
         if sshfs.password_stdin != 0 {
-            fprintf(
-                stderr,
-                b"password_stdin option cannot be specified with parallel connections\n\0"
-                    as *const u8 as *const libc::c_char,
-            );
+            eprintln!("password_stdin option cannot be specified with parallel connections");
             exit(1 as libc::c_int);
         }
         if sshfs.passive != 0 {
-            fprintf(
-                stderr,
-                b"passive option cannot be specified with parallel connections\n\0"
-                    as *const u8 as *const libc::c_char,
-            );
+            eprintln!("passive option cannot be specified with parallel connections");
             exit(1 as libc::c_int);
         }
     } else if sshfs.max_conns <= 0 as libc::c_int {
-        fprintf(
-            stderr,
-            b"value of max_conns option must be at least 1\n\0" as *const u8
-                as *const libc::c_char,
-        );
-        exit(1 as libc::c_int);
+        eprintln!("value of max_conns option must be at least 1");
+        exit(1);
     }
     sshfs
         .conns = ({
