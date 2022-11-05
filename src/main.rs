@@ -1093,10 +1093,6 @@ pub struct sshfs {
     pub mountpoint: *mut libc::c_char,
     pub uid_file: *mut libc::c_char,
     pub gid_file: *mut libc::c_char,
-    pub uid_map: *mut GHashTable,
-    pub gid_map: *mut GHashTable,
-    pub r_uid_map: *mut GHashTable,
-    pub r_gid_map: *mut GHashTable,
     pub max_read: libc::c_uint,
     pub max_write: libc::c_uint,
     pub ssh_ver: libc::c_uint,
@@ -1198,10 +1194,6 @@ static mut sshfs: sshfs = sshfs {
     mountpoint: 0 as *const libc::c_char as *mut libc::c_char,
     uid_file: 0 as *const libc::c_char as *mut libc::c_char,
     gid_file: 0 as *const libc::c_char as *mut libc::c_char,
-    uid_map: 0 as *const GHashTable as *mut GHashTable,
-    gid_map: 0 as *const GHashTable as *mut GHashTable,
-    r_uid_map: 0 as *const GHashTable as *mut GHashTable,
-    r_gid_map: 0 as *const GHashTable as *mut GHashTable,
     max_read: 0,
     max_write: 0,
     ssh_ver: 0,
@@ -6209,11 +6201,6 @@ unsafe fn main_0(
     if sshfs.idmap == IDMAP_USER as libc::c_int {
         sshfs.detect_uid = 1 as libc::c_int;
     } else if sshfs.idmap == IDMAP_FILE as libc::c_int {
-        sshfs.uid_map = 0 as *mut GHashTable;
-        sshfs.gid_map = 0 as *mut GHashTable;
-        sshfs.r_uid_map = 0 as *mut GHashTable;
-        sshfs.r_gid_map = 0 as *mut GHashTable;
-
         id_map::handle_id_maps(sshfs.uid_file, sshfs.gid_file);
     }
     free(sshfs.uid_file as *mut libc::c_void);
