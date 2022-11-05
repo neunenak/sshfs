@@ -3,6 +3,7 @@
 #![feature(extern_types, register_tool)]
 
 mod id_map;
+mod ssh_opt;
 
 use ::libsshfs::*;
 use libfuse_sys::fuse::{fuse_opt, fuse_args, fuse_file_info, fuse_opt_free_args, fuse_opt_proc_t};
@@ -1321,70 +1322,6 @@ static mut sshfs: sshfs = sshfs {
     total_rtt: 0,
     num_connect: 0,
 };
-static mut ssh_opts: [*const libc::c_char; 62] = [
-    b"AddressFamily\0" as *const u8 as *const libc::c_char,
-    b"BatchMode\0" as *const u8 as *const libc::c_char,
-    b"BindAddress\0" as *const u8 as *const libc::c_char,
-    b"BindInterface\0" as *const u8 as *const libc::c_char,
-    b"CertificateFile\0" as *const u8 as *const libc::c_char,
-    b"ChallengeResponseAuthentication\0" as *const u8 as *const libc::c_char,
-    b"CheckHostIP\0" as *const u8 as *const libc::c_char,
-    b"Cipher\0" as *const u8 as *const libc::c_char,
-    b"Ciphers\0" as *const u8 as *const libc::c_char,
-    b"Compression\0" as *const u8 as *const libc::c_char,
-    b"CompressionLevel\0" as *const u8 as *const libc::c_char,
-    b"ConnectionAttempts\0" as *const u8 as *const libc::c_char,
-    b"ConnectTimeout\0" as *const u8 as *const libc::c_char,
-    b"ControlMaster\0" as *const u8 as *const libc::c_char,
-    b"ControlPath\0" as *const u8 as *const libc::c_char,
-    b"ControlPersist\0" as *const u8 as *const libc::c_char,
-    b"FingerprintHash\0" as *const u8 as *const libc::c_char,
-    b"GlobalKnownHostsFile\0" as *const u8 as *const libc::c_char,
-    b"GSSAPIAuthentication\0" as *const u8 as *const libc::c_char,
-    b"GSSAPIDelegateCredentials\0" as *const u8 as *const libc::c_char,
-    b"HostbasedAuthentication\0" as *const u8 as *const libc::c_char,
-    b"HostbasedKeyTypes\0" as *const u8 as *const libc::c_char,
-    b"HostKeyAlgorithms\0" as *const u8 as *const libc::c_char,
-    b"HostKeyAlias\0" as *const u8 as *const libc::c_char,
-    b"HostName\0" as *const u8 as *const libc::c_char,
-    b"IdentitiesOnly\0" as *const u8 as *const libc::c_char,
-    b"IdentityFile\0" as *const u8 as *const libc::c_char,
-    b"IdentityAgent\0" as *const u8 as *const libc::c_char,
-    b"IPQoS\0" as *const u8 as *const libc::c_char,
-    b"KbdInteractiveAuthentication\0" as *const u8 as *const libc::c_char,
-    b"KbdInteractiveDevices\0" as *const u8 as *const libc::c_char,
-    b"KexAlgorithms\0" as *const u8 as *const libc::c_char,
-    b"LocalCommand\0" as *const u8 as *const libc::c_char,
-    b"LogLevel\0" as *const u8 as *const libc::c_char,
-    b"MACs\0" as *const u8 as *const libc::c_char,
-    b"NoHostAuthenticationForLocalhost\0" as *const u8 as *const libc::c_char,
-    b"NumberOfPasswordPrompts\0" as *const u8 as *const libc::c_char,
-    b"PasswordAuthentication\0" as *const u8 as *const libc::c_char,
-    b"PermitLocalCommand\0" as *const u8 as *const libc::c_char,
-    b"PKCS11Provider\0" as *const u8 as *const libc::c_char,
-    b"Port\0" as *const u8 as *const libc::c_char,
-    b"PreferredAuthentications\0" as *const u8 as *const libc::c_char,
-    b"ProxyCommand\0" as *const u8 as *const libc::c_char,
-    b"ProxyJump\0" as *const u8 as *const libc::c_char,
-    b"ProxyUseFdpass\0" as *const u8 as *const libc::c_char,
-    b"PubkeyAcceptedKeyTypes\0" as *const u8 as *const libc::c_char,
-    b"PubkeyAuthentication\0" as *const u8 as *const libc::c_char,
-    b"RekeyLimit\0" as *const u8 as *const libc::c_char,
-    b"RevokedHostKeys\0" as *const u8 as *const libc::c_char,
-    b"RhostsRSAAuthentication\0" as *const u8 as *const libc::c_char,
-    b"RSAAuthentication\0" as *const u8 as *const libc::c_char,
-    b"ServerAliveCountMax\0" as *const u8 as *const libc::c_char,
-    b"ServerAliveInterval\0" as *const u8 as *const libc::c_char,
-    b"SmartcardDevice\0" as *const u8 as *const libc::c_char,
-    b"StrictHostKeyChecking\0" as *const u8 as *const libc::c_char,
-    b"TCPKeepAlive\0" as *const u8 as *const libc::c_char,
-    b"UpdateHostKeys\0" as *const u8 as *const libc::c_char,
-    b"UsePrivilegedPort\0" as *const u8 as *const libc::c_char,
-    b"UserKnownHostsFile\0" as *const u8 as *const libc::c_char,
-    b"VerifyHostKeyDNS\0" as *const u8 as *const libc::c_char,
-    b"VisualHostKey\0" as *const u8 as *const libc::c_char,
-    0 as *const libc::c_char,
-];
 static mut sshfs_opts: [fuse_opt; 57] = [fuse_opt {
     templ: 0 as *const libc::c_char,
     offset: 0,
@@ -5916,23 +5853,6 @@ unsafe extern "C" fn usage(mut progname: *const libc::c_char) {
         progname,
     );
 }
-unsafe extern "C" fn is_ssh_opt(mut arg: *const libc::c_char) -> libc::c_int {
-    if *arg.offset(0 as libc::c_int as isize) as libc::c_int != '-' as i32 {
-        let mut arglen: libc::c_uint = strlen(arg) as libc::c_uint;
-        let mut o: *mut *const libc::c_char = 0 as *mut *const libc::c_char;
-        o = ssh_opts.as_mut_ptr();
-        while !(*o).is_null() {
-            let mut olen: libc::c_uint = strlen(*o) as libc::c_uint;
-            if arglen > olen && *arg.offset(olen as isize) as libc::c_int == '=' as i32
-                && strncasecmp(arg, *o, olen as libc::c_ulong) == 0 as libc::c_int
-            {
-                return 1 as libc::c_int;
-            }
-            o = o.offset(1);
-        }
-    }
-    return 0 as libc::c_int;
-}
 unsafe extern "C" fn sshfs_opt_proc(
     mut data: *mut libc::c_void,
     mut arg: *const libc::c_char,
@@ -5942,7 +5862,7 @@ unsafe extern "C" fn sshfs_opt_proc(
     let mut tmp: *mut libc::c_char = 0 as *mut libc::c_char;
     match key {
         -1 => {
-            if is_ssh_opt(arg) != 0 {
+            if ssh_opt::is_ssh_opt(arg) != 0 {
                 tmp = g_strdup_printf(
                     b"-o%s\0" as *const u8 as *const libc::c_char,
                     arg,
