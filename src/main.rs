@@ -9,7 +9,7 @@ mod ssh;
 
 use ::libsshfs::*;
 use libfuse_sys::fuse::{fuse_opt, fuse_args, fuse_file_info, fuse_opt_free_args, fuse_opt_proc_t};
-use libc::time_t;
+use libc::{FILE, time_t};
 use std::ffi::{CString, CStr};
 
 
@@ -17,9 +17,6 @@ extern "C" {
     pub type fuse_session;
     pub type fuse_pollhandle;
     pub type fuse;
-    pub type _IO_wide_data;
-    pub type _IO_codecvt;
-    pub type _IO_marker;
     pub type sockaddr_x25;
     pub type sockaddr_un;
     pub type sockaddr_ns;
@@ -322,7 +319,6 @@ pub type __fsfilcnt64_t = libc::c_ulong;
 pub type __ssize_t = libc::c_long;
 pub type __syscall_slong_t = libc::c_long;
 pub type __socklen_t = libc::c_uint;
-pub type uintptr_t = libc::c_ulong;
 pub type dev_t = __dev_t;
 pub type gid_t = __gid_t;
 pub type mode_t = __mode_t;
@@ -802,41 +798,6 @@ pub struct fuse_operations {
         ) -> off_t,
     >,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _IO_FILE {
-    pub _flags: libc::c_int,
-    pub _IO_read_ptr: *mut libc::c_char,
-    pub _IO_read_end: *mut libc::c_char,
-    pub _IO_read_base: *mut libc::c_char,
-    pub _IO_write_base: *mut libc::c_char,
-    pub _IO_write_ptr: *mut libc::c_char,
-    pub _IO_write_end: *mut libc::c_char,
-    pub _IO_buf_base: *mut libc::c_char,
-    pub _IO_buf_end: *mut libc::c_char,
-    pub _IO_save_base: *mut libc::c_char,
-    pub _IO_backup_base: *mut libc::c_char,
-    pub _IO_save_end: *mut libc::c_char,
-    pub _markers: *mut _IO_marker,
-    pub _chain: *mut _IO_FILE,
-    pub _fileno: libc::c_int,
-    pub _flags2: libc::c_int,
-    pub _old_offset: __off_t,
-    pub _cur_column: libc::c_ushort,
-    pub _vtable_offset: libc::c_schar,
-    pub _shortbuf: [libc::c_char; 1],
-    pub _lock: *mut libc::c_void,
-    pub _offset: __off64_t,
-    pub _codecvt: *mut _IO_codecvt,
-    pub _wide_data: *mut _IO_wide_data,
-    pub _freeres_list: *mut _IO_FILE,
-    pub _freeres_buf: *mut libc::c_void,
-    pub __pad5: size_t,
-    pub _mode: libc::c_int,
-    pub _unused2: [libc::c_char; 20],
-}
-pub type _IO_lock_t = ();
-pub type FILE = _IO_FILE;
 pub type socklen_t = __socklen_t;
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -6151,7 +6112,6 @@ unsafe fn main_0(
         init
     };
     let mut tmp: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut fsname: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut sftp_server: *const libc::c_char = 0 as *const libc::c_char;
     let mut fuse: *mut fuse = 0 as *mut fuse;
     let mut se: *mut fuse_session = 0 as *mut fuse_session;
@@ -6362,7 +6322,6 @@ unsafe fn main_0(
         (*(sshfs.conns).offset(i as isize)).wfd = -(1 as libc::c_int);
         i += 1;
     }
-    fsname = g_strdup(sshfs.host);
     sshfs.base_path = g_strdup(find_base_path());
     if !(sshfs.ssh_command).is_null() {
         set_ssh_command();
