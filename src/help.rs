@@ -1,10 +1,6 @@
 use libfuse_sys::fuse::{fuse_lib_help, fuse_args};
+use crate::IDMAP_DEFAULT;
 
-const IDMAP_DEFAULT: &str = if cfg!(target_os = "macos") {
-    "user"
-} else {
-    "none"
-};
 
 pub fn show_help(fuse_args: *mut fuse_args) {
     let e = std::borrow::Cow::from("");

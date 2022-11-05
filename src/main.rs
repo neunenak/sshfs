@@ -15,6 +15,11 @@ use libc::{FILE, time_t};
 use std::ffi::{CString, CStr};
 use std::process::exit;
 
+const IDMAP_DEFAULT: &str = if cfg!(target_os = "macos") {
+    "user"
+} else {
+    "none"
+};
 
 extern "C" {
     pub type fuse_session;
@@ -6097,26 +6102,13 @@ unsafe fn main_0(
     sshfs.delay_connect = 0 as libc::c_int;
     sshfs.passive = 0 as libc::c_int;
     sshfs.detect_uid = 0 as libc::c_int;
-    if strcmp(
-        b"none\0" as *const u8 as *const libc::c_char,
-        b"none\0" as *const u8 as *const libc::c_char,
-    ) == 0 as libc::c_int
-    {
-        sshfs.idmap = IDMAP_NONE as libc::c_int;
-    } else if strcmp(
-        b"none\0" as *const u8 as *const libc::c_char,
-        b"user\0" as *const u8 as *const libc::c_char,
-    ) == 0 as libc::c_int
-    {
-        sshfs.idmap = IDMAP_USER as libc::c_int;
-    } else {
-        fprintf(
-            stderr,
-            b"bad idmap default value built into sshfs; assuming none (bad logic in configure script?)\n\0"
-                as *const u8 as *const libc::c_char,
-        );
-        sshfs.idmap = IDMAP_NONE as libc::c_int;
-    }
+
+    sshfs.idmap = match IDMAP_DEFAULT {
+        "none" => IDMAP_NONE as i32,
+        "user" => IDMAP_USER as i32,
+        _ => unreachable!(),
+    };
+
     sshfs.nomap = NOMAP_ERROR as libc::c_int;
     ssh_add_arg(b"ssh\0" as *const u8 as *const libc::c_char);
     ssh_add_arg(b"-x\0" as *const u8 as *const libc::c_char);
