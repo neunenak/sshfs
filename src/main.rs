@@ -4,7 +4,7 @@
 
 const SSHFS_VERSION: &'static str = "4.0.0-alpha0";
 
-mod help;
+mod options;
 mod id_map;
 mod ssh_opt;
 mod ssh;
@@ -6127,7 +6127,7 @@ unsafe fn main_0(
         exit(0);
     }
     if sshfs.show_help != 0 {
-        help::show_help(&mut args);
+        options::show_help(&mut args);
     } else {
         if (sshfs.host).is_null() {
             eprintln!("missing host");
