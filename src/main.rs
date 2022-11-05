@@ -7,6 +7,7 @@ mod id_map;
 use ::libsshfs::*;
 use libfuse_sys::fuse::{fuse_opt, fuse_args, fuse_file_info, fuse_opt_free_args, fuse_opt_proc_t};
 use libc::time_t;
+use std::ffi::{CString, CStr};
 
 
 extern "C" {
@@ -6237,32 +6238,38 @@ unsafe extern "C" fn find_base_path() -> *mut libc::c_char {
     s = s.offset(1);
     return s;
 }
-unsafe extern "C" fn fsname_escape_commas(
-    mut fsnameold: *mut libc::c_char,
-) -> *mut libc::c_char {
-    let mut fsname: *mut libc::c_char = g_malloc(
-        (strlen(fsnameold))
-            .wrapping_mul(2 as libc::c_int as libc::c_ulong)
-            .wrapping_add(1 as libc::c_int as libc::c_ulong),
-    ) as *mut libc::c_char;
-    let mut d: *mut libc::c_char = fsname;
-    let mut s: *mut libc::c_char = 0 as *mut libc::c_char;
-    s = fsnameold;
-    while *s != 0 {
-        if *s as libc::c_int == '\\' as i32 || *s as libc::c_int == ',' as i32 {
-            let fresh59 = d;
-            d = d.offset(1);
-            *fresh59 = '\\' as i32 as libc::c_char;
+
+
+fn add_comma_escaped_hostname(args: *mut fuse_args, hostname: *const libc::c_char) {
+    let hostname = unsafe { CStr::from_ptr(hostname) };
+    let hostname = hostname.to_string_lossy();
+    let mut buf = String::new();
+
+    buf.push_str("-osubtype=sshfs,fsname=");
+
+    for ch in hostname.chars() {
+        if ch == '\\' || ch == ',' {
+            buf.push('\\');
+            buf.push(ch);
+        } else {
+            buf.push(ch);
         }
-        let fresh60 = d;
-        d = d.offset(1);
-        *fresh60 = *s;
-        s = s.offset(1);
     }
-    *d = '\0' as i32 as libc::c_char;
-    g_free(fsnameold as gpointer);
-    return fsname;
+
+    let cstring_arg = match CString::new(buf) {
+        Ok(s) => s,
+        Err(err) => {
+            eprintln!("Error allocating string: {}", err);
+            std::process::exit(1);
+        }
+    };
+    unsafe {
+        libfuse_sys::fuse::fuse_opt_insert_arg(args, 1, cstring_arg.as_ptr());
+    }
 }
+
+
+
 unsafe extern "C" fn ssh_connect() -> libc::c_int {
     let mut res: libc::c_int = 0;
     res = processing_init();
@@ -6601,14 +6608,10 @@ unsafe fn main_0(
     if sshfs.max_write > 65536 as libc::c_int as libc::c_uint {
         sshfs.max_write = 65536 as libc::c_int as libc::c_uint;
     }
-    fsname = fsname_escape_commas(fsname);
-    tmp = g_strdup_printf(
-        b"-osubtype=sshfs,fsname=%s\0" as *const u8 as *const libc::c_char,
-        fsname,
-    );
-    fuse_opt_insert_arg(&mut args, 1 as libc::c_int, tmp);
-    g_free(tmp as gpointer);
-    g_free(fsname as gpointer);
+
+    add_comma_escaped_hostname(&mut args, sshfs.host);
+
+
     if sshfs.dir_cache != 0 {
         sshfs.op = cache_wrap(&mut sshfs_oper);
     } else {
