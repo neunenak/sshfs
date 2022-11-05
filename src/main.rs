@@ -1822,12 +1822,12 @@ unsafe extern "C" fn buf_get_attrs(
             gid = sshfs.local_gid;
         }
     }
-    if sshfs.idmap == IDMAP_FILE as libc::c_int && !(sshfs.uid_map).is_null() {
+    if sshfs.idmap == IDMAP_FILE as libc::c_int {
         if id_map::translate_id(&mut uid, "uid", sshfs.nomap) == -(1 as libc::c_int) {
             return -(1 as libc::c_int);
         }
     }
-    if sshfs.idmap == IDMAP_FILE as libc::c_int && !(sshfs.gid_map).is_null() {
+    if sshfs.idmap == IDMAP_FILE as libc::c_int {
         if id_map::translate_id(&mut gid, "gid", sshfs.nomap) == -(1 as libc::c_int) {
             return -(1 as libc::c_int);
         }
@@ -4287,12 +4287,12 @@ unsafe extern "C" fn sshfs_chown(
             gid = sshfs.remote_gid;
         }
     }
-    if sshfs.idmap == IDMAP_FILE as libc::c_int && !(sshfs.r_uid_map).is_null() {
+    if sshfs.idmap == IDMAP_FILE as libc::c_int {
         if id_map::translate_id(&mut uid, "ruid", sshfs.nomap) == -(1 as libc::c_int) {
             return -(1 as libc::c_int);
         }
     }
-    if sshfs.idmap == IDMAP_FILE as libc::c_int && !(sshfs.r_gid_map).is_null() {
+    if sshfs.idmap == IDMAP_FILE as libc::c_int {
         if id_map::translate_id(&mut gid, "rgid", sshfs.nomap) == -(1 as libc::c_int) {
             return -(1 as libc::c_int);
         }
