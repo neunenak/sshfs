@@ -32,15 +32,14 @@ very simple to use - there's nothing to do on the server-side.
 Development Status
 ------------------
 
-SSHFS is shipped by all major Linux distributions and has been in
-production use across a wide range of systems for many years. However,
-at present SSHFS does not have any active, regular contributors, and
-there are a number of known issues (see the bugtracker).  The current
-maintainer continues to apply pull requests and makes regular
-releases, but unfortunately has no capacity to do any development
-beyond addressing high-impact issues. When reporting bugs, please
-understand that unless you are including a pull request or are
-reporting a critical issue, you will probably not get a response.
+SSHFS is shipped by all major Linux distributions and has been in production
+use across a wide range of systems for many years. However, at present SSHFS
+does not have any active, regular contributors, and there are a number of known
+issues (see the bugtracker associated with https://github.com/libfuse/sshfs ).
+
+Ongoing development by Greg Shuflin is currently done on the Github repository
+https://github.com/neunenak/sshfs . Users should feel free to report bugs and
+submit pull requests to that fork of the project.
 
 
 How to use
@@ -72,6 +71,21 @@ On BSD and macOS, to unmount the filesystem::
 
 Installation
 ------------
+
+I am currently in the process of porting the existing sshfs C codebase to Rust,
+and coming up with friendly build instructions for the new Rust codebase.
+
+This project uses the `just <https://just.systems/>`_ command-runner utility, and
+the Rust toolchain, which can be installed with ``rustup``.
+
+Run ``just build-rust`` in the root directory of the repository to build the Rust
+version of the program. This will create a binary at ``target/debug/sshfs``.
+
+Run ``just test`` to run the existing pytest test suite against the Rust binary.
+
+
+Old C Installation Documentation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 First, download the latest SSHFS release from
 https://github.com/libfuse/sshfs/releases. You also need libfuse_ 3.1.0 or newer (or a
