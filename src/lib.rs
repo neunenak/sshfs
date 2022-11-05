@@ -14,6 +14,3 @@ extern crate c2rust_bitfields;
 extern crate libc;
 
 pub mod cache;
-pub mod test {
-    pub mod wrong_command;
-}
