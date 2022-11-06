@@ -80,6 +80,7 @@ pub enum SshFSOption {
     DirectIO,
     MaxConns(u32),
     Discarded,
+    SSHOption(String),
     OtherOption(String),
 }
 
@@ -192,6 +193,9 @@ impl TypedValueParser for SshFSOptionValueParser {
 
             /* These may come in from /etc/fstab - we just ignore them */
             "auto" | "noauto" | "user" | "nouser" | "users" | "_netdev" => SshFSOption::Discarded,
+            other if crate::ssh_opt::is_ssh_opt_str(other) => {
+                SshFSOption::SSHOption(other.to_string())
+            }
             other => SshFSOption::OtherOption(other.into()),
         };
 

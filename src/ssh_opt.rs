@@ -1,5 +1,5 @@
-use std::ffi::CStr;
 use libc::{c_char, c_int};
+use std::ffi::CStr;
 
 pub fn is_ssh_opt(s: *const c_char) -> c_int {
     let c_string = unsafe { CStr::from_ptr(s) };
@@ -12,6 +12,15 @@ pub fn is_ssh_opt(s: *const c_char) -> c_int {
         }
     }
     return 0;
+}
+
+pub fn is_ssh_opt_str(s: &str) -> bool {
+    for opt in SSH_OPTS.iter() {
+        if s == *opt {
+            return true;
+        }
+    }
+    false
 }
 
 const SSH_OPTS: [&'static str; 61] = [
