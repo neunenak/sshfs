@@ -64,6 +64,7 @@ pub enum SshFSOption {
     NoMap(NoMap),
     SshfsSync,
     NoReadahead,
+    SyncReaddir,
     SyncReadahead,
     Debug, // -o sshfs_debug as opposed to -d or --debug
     Verbose,
@@ -130,14 +131,56 @@ impl TypedValueParser for SshFSOptionValueParser {
             return Ok(SshFSOption::IdMap(idmap));
         }
 
+        if let Some(rest) = value.strip_prefix("uidfile=") {
+            return Ok(SshFSOption::UidFile(rest.to_string()));
+        }
+        if let Some(rest) = value.strip_prefix("gidfile=") {
+            return Ok(SshFSOption::GidFile(rest.to_string()));
+        }
+        if let Some(rest) = value.strip_prefix("nomap=") {
+            let nomap = match rest {
+                "ignore" => NoMap::Ignore,
+                "error" => NoMap::Error,
+                _ => return Err(Error::new(ErrorKind::InvalidValue).with_cmd(cmd)),
+            };
+            return Ok(SshFSOption::NoMap(nomap));
+        }
+
+        if let Some(rest) = value.strip_prefix("dir_cache=") {
+            let b = match rest {
+                "yes" => true,
+                "no" => false,
+                _ => return Err(Error::new(ErrorKind::InvalidValue).with_cmd(cmd)),
+            };
+            return Ok(SshFSOption::DirCache(b));
+        }
+        if let Some(rest) = value.strip_prefix("max_conns=") {
+            let n = u32::from_str(rest)
+                .map_err(|_| Error::new(ErrorKind::InvalidValue).with_cmd(cmd))?;
+            return Ok(SshFSOption::MaxConns(n));
+        }
+
         let output = match value.as_ref() {
+            "sshfs_sync" => SshFSOption::SshfsSync,
+            "no_readahead" => SshFSOption::NoReadahead,
+            "sync_readdir" => SshFSOption::SyncReaddir,
+            "sshfs_debug" => SshFSOption::Debug,
+            "sshfs_verbose" => SshFSOption::Verbose,
             "reconnect" => SshFSOption::Reconnect,
+            "transform_symlinks" => SshFSOption::TransformSymlinks,
+            "follow_symlinks" => SshFSOption::FollowSymlinks,
+            "no_check_root" => SshFSOption::NoCheckRoot,
+            "password_stdin" => SshFSOption::PasswordStdin,
             "delay_connect" => SshFSOption::DelayConnect,
+            "slave" | "passive" => SshFSOption::Slave,
+            "disable_hardlink" => SshFSOption::DisableHardlink,
+            "direct_io" => SshFSOption::DirectIO,
             _ => {
                 let err = Error::new(ErrorKind::InvalidValue).with_cmd(cmd);
                 return Err(err);
             }
         };
+
         Ok(output)
     }
 }
