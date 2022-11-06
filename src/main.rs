@@ -15,6 +15,7 @@ use libc::{FILE, time_t};
 use std::ffi::{CString, CStr};
 use std::process::exit;
 use clap::ArgMatches;
+use std::path::Path;
 
 const IDMAP_DEFAULT: &str = if cfg!(target_os = "macos") {
     "user"
@@ -6051,6 +6052,52 @@ fn add_comma_escaped_hostname(args: *mut fuse_args, hostname: *const libc::c_cha
 }
 
 
+fn set_sshfs_from_options(sshfs_item: &mut sshfs, matches: &ArgMatches) {
+
+    let connect_string = matches.get_one::<String>("connect_string").unwrap();
+    let mountpoint = matches.get_one::<String>("mountpoint").unwrap();
+    //TODO mountpoint handling needs to be different for cygwin
+
+
+    let mountpoint = Path::new(mountpoint).canonicalize();
+
+
+
+    //TODO some of these need different values on a mac
+    sshfs_item.blksize = 4096 as libc::c_int as libc::c_uint;
+    sshfs_item.max_read = 32768 as libc::c_int as libc::c_uint;
+    sshfs_item.max_write = 32768 as libc::c_int as libc::c_uint;
+    sshfs_item.rename_workaround = 0 as libc::c_int;
+    sshfs_item.renamexdev_workaround = 0 as libc::c_int;
+    sshfs_item.truncate_workaround = 0 as libc::c_int;
+    sshfs_item.buflimit_workaround = 0 as libc::c_int;
+    sshfs_item.createmode_workaround = 0 as libc::c_int;
+    sshfs_item.ssh_ver = 2;
+    sshfs_item.max_conns = 1 as libc::c_int;
+    sshfs_item.ptyfd = -(1 as libc::c_int);
+    sshfs_item.dir_cache = 1 as libc::c_int;
+    sshfs_item.show_help = 0 as libc::c_int;
+    sshfs_item.show_version = 0 as libc::c_int;
+    sshfs_item.foreground = if matches.get_flag("foreground") { 1 } else { 0 };
+    sshfs_item.ptypassivefd = -(1 as libc::c_int);
+    sshfs_item.delay_connect = 0 as libc::c_int;
+    sshfs_item.passive = 0 as libc::c_int;
+    sshfs_item.detect_uid = 0 as libc::c_int;
+
+    sshfs_item.idmap = match IDMAP_DEFAULT {
+        "none" => IDMAP_NONE as i32,
+        "user" => IDMAP_USER as i32,
+        _ => unreachable!(),
+    };
+
+    sshfs_item.nomap = NOMAP_ERROR as libc::c_int;
+
+
+
+
+
+}
+
 
 
 unsafe fn main_0(
@@ -6064,36 +6111,12 @@ unsafe fn main_0(
         argc, argv, allocated: 0
     };
 
+    sshfs.progname = *argv.offset(0 as libc::c_int as isize);
+
+    set_sshfs_from_options(&mut sshfs, &matches);
+
     let mut sftp_server: *const libc::c_char = 0 as *const libc::c_char;
     let mut i: libc::c_int = 0;
-    sshfs.blksize = 4096 as libc::c_int as libc::c_uint;
-    sshfs.max_read = 32768 as libc::c_int as libc::c_uint;
-    sshfs.max_write = 32768 as libc::c_int as libc::c_uint;
-    sshfs.rename_workaround = 0 as libc::c_int;
-    sshfs.renamexdev_workaround = 0 as libc::c_int;
-    sshfs.truncate_workaround = 0 as libc::c_int;
-    sshfs.buflimit_workaround = 0 as libc::c_int;
-    sshfs.createmode_workaround = 0 as libc::c_int;
-    sshfs.ssh_ver = 2;
-    sshfs.progname = *argv.offset(0 as libc::c_int as isize);
-    sshfs.max_conns = 1 as libc::c_int;
-    sshfs.ptyfd = -(1 as libc::c_int);
-    sshfs.dir_cache = 1 as libc::c_int;
-    sshfs.show_help = 0 as libc::c_int;
-    sshfs.show_version = 0 as libc::c_int;
-    sshfs.foreground = if matches.get_flag("foreground") { 1 } else { 0 };
-    sshfs.ptypassivefd = -(1 as libc::c_int);
-    sshfs.delay_connect = 0 as libc::c_int;
-    sshfs.passive = 0 as libc::c_int;
-    sshfs.detect_uid = 0 as libc::c_int;
-
-    sshfs.idmap = match IDMAP_DEFAULT {
-        "none" => IDMAP_NONE as i32,
-        "user" => IDMAP_USER as i32,
-        _ => unreachable!(),
-    };
-
-    sshfs.nomap = NOMAP_ERROR as libc::c_int;
     ssh_add_arg(b"ssh\0" as *const u8 as *const libc::c_char);
     ssh_add_arg(b"-x\0" as *const u8 as *const libc::c_char);
     ssh_add_arg(b"-a\0" as *const u8 as *const libc::c_char);
