@@ -6059,18 +6059,12 @@ unsafe fn main_0(
     matches: ArgMatches,
 ) -> libc::c_int {
     let mut res: libc::c_int = 0;
-    let mut args: fuse_args = {
-        let mut init = fuse_args {
-            argc,
-            argv,
-            allocated: 0 as libc::c_int,
-        };
-        init
+
+    let mut args = fuse_args {
+        argc, argv, allocated: 0
     };
-    let mut tmp: *mut libc::c_char = 0 as *mut libc::c_char;
+
     let mut sftp_server: *const libc::c_char = 0 as *const libc::c_char;
-    let mut fuse: *mut fuse = 0 as *mut fuse;
-    let mut se: *mut fuse_session = 0 as *mut fuse_session;
     let mut i: libc::c_int = 0;
     sshfs.blksize = 4096 as libc::c_int as libc::c_uint;
     sshfs.max_read = 32768 as libc::c_int as libc::c_uint;
@@ -6232,7 +6226,7 @@ unsafe fn main_0(
     if !(sshfs.ssh_command).is_null() {
         set_ssh_command();
     }
-    tmp = g_strdup_printf(b"-%i\0" as *const u8 as *const libc::c_char, sshfs.ssh_ver);
+    let tmp = g_strdup_printf(b"-%i\0" as *const u8 as *const libc::c_char, sshfs.ssh_ver);
     ssh_add_arg(tmp);
     g_free(tmp as gpointer);
     ssh_add_arg(sshfs.host);
@@ -6270,16 +6264,16 @@ unsafe fn main_0(
     } else {
         sshfs.op = &mut sshfs_oper;
     }
-    fuse = fuse_new(
+    let mut fuse = fuse_new(
         &mut args,
         sshfs.op,
-        ::std::mem::size_of::<fuse_operations>() as libc::c_ulong,
+        std::mem::size_of::<fuse_operations>() as libc::c_ulong,
         0 as *mut libc::c_void,
     );
     if fuse.is_null() {
         exit(1 as libc::c_int);
     }
-    se = fuse_get_session(fuse);
+    let mut se = fuse_get_session(fuse);
     res = fuse_set_signal_handlers(se);
     if res != 0 as libc::c_int {
         fuse_destroy(fuse);
