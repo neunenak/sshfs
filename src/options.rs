@@ -2,6 +2,7 @@ use crate::{IDMAP_DEFAULT, SSHFS_VERSION};
 use libfuse_sys::fuse::{fuse_args, fuse_lib_help};
 use std::ffi::CStr;
 
+use clap::builder::TypedValueParser;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 
 fn version_string() -> String {
@@ -19,6 +20,126 @@ fn version_string() -> String {
     .unwrap();
     //TODO can this print fuse_lowlevel_version() and fusermount information?
     buf
+}
+
+#[derive(Debug, Clone)]
+struct SshFSOptionValueParser;
+
+#[derive(Clone, Debug)]
+pub enum IdMap {
+    None,
+    User,
+    File,
+}
+
+#[derive(Clone, Debug)]
+pub enum NoMap {
+    Ignore,
+    Error,
+}
+
+#[derive(Clone, Debug)]
+pub enum Workaround {
+    None,
+    Rename(bool),
+    RenameXDev(bool),
+    Truncate(bool),
+    Buflimit(bool),
+    Fstat(bool),
+    Createmode(bool),
+}
+
+#[derive(Clone, Debug)]
+pub enum SshFSOption {
+    DirectPort(String), // directport=PORT
+    SshCommand(String),
+    SftpServer(String), //sftp_server=SERV
+    MaxRead(u32),
+    MaxWrite(u32),
+    SshProtocol(u32), // ssh_protocol
+    Workaround(Workaround),
+    IdMap(IdMap),
+    UidFile(String),
+    GidFile(String),
+    NoMap(NoMap),
+    SshfsSync,
+    NoReadahead,
+    SyncReadahead,
+    Debug, // -o sshfs_debug as opposed to -d or --debug
+    Verbose,
+    Reconnect,
+    TransformSymlinks,
+    FollowSymlinks,
+    NoCheckRoot,
+    PasswordStdin,
+    DelayConnect,
+    Slave, // passive or slave
+    DisableHardlink,
+    DirCache(bool),
+    DirectIO,
+    MaxConns(u32),
+}
+
+impl TypedValueParser for SshFSOptionValueParser {
+    type Value = SshFSOption;
+
+    fn parse_ref(
+        &self,
+        cmd: &clap::Command,
+        _arg: Option<&clap::Arg>,
+        value: &std::ffi::OsStr,
+    ) -> Result<Self::Value, clap::Error> {
+        use clap::error::{Error, ErrorKind};
+        use std::str::FromStr;
+
+        let value = value.to_string_lossy().to_string();
+        println!("Value: {}", value);
+
+        if let Some(rest) = value.strip_prefix("directport=") {
+            return Ok(SshFSOption::DirectPort(rest.to_string()));
+        }
+        if let Some(rest) = value.strip_prefix("ssh_command=") {
+            return Ok(SshFSOption::SshCommand(rest.to_string()));
+        }
+        if let Some(rest) = value.strip_prefix("sftp_server=") {
+            return Ok(SshFSOption::SftpServer(rest.to_string()));
+        }
+        if let Some(rest) = value.strip_prefix("max_read=") {
+            let n = u32::from_str(rest)
+                .map_err(|_| Error::new(ErrorKind::InvalidValue).with_cmd(cmd))?;
+            return Ok(SshFSOption::MaxRead(n));
+        }
+        if let Some(rest) = value.strip_prefix("max_write=") {
+            let n = u32::from_str(rest)
+                .map_err(|_| Error::new(ErrorKind::InvalidValue).with_cmd(cmd))?;
+            return Ok(SshFSOption::MaxWrite(n));
+        }
+        if let Some(rest) = value.strip_prefix("ssh_protocol=") {
+            let n = u32::from_str(rest)
+                .map_err(|_| Error::new(ErrorKind::InvalidValue).with_cmd(cmd))?;
+            return Ok(SshFSOption::SshProtocol(n));
+        }
+        //TODO parse workarounds
+        if let Some(rest) = value.strip_prefix("idmap=") {
+            let idmap = match rest {
+                "none" => IdMap::None,
+                "user" => IdMap::User,
+                "file" => IdMap::File,
+                _ => return Err(Error::new(ErrorKind::InvalidValue).with_cmd(cmd))
+            };
+            return Ok(SshFSOption::IdMap(idmap));
+        }
+
+        let output = match value.as_ref() {
+            "reconnect" => SshFSOption::Reconnect,
+            "delay_connect" => SshFSOption::DelayConnect,
+            _ => {
+                let err = Error::new(ErrorKind::InvalidValue).with_cmd(cmd);
+                return Err(err);
+            }
+        };
+        Ok(output)
+    }
 }
 
 pub fn sshfs_options() -> Command {
@@ -57,6 +178,7 @@ pub fn sshfs_options() -> Command {
             Arg::new("option")
                 .short('o')
                 .action(ArgAction::Append)
+                .value_parser(SshFSOptionValueParser)
                 .help("mount options"),
         )
         .arg(

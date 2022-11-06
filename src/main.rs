@@ -6338,9 +6338,16 @@ unsafe fn main_0(
     return res;
 }
 
+
 pub fn main() {
     let parsed_args = options::sshfs_options();
     let matches = parsed_args.get_matches();
+
+    let option_matches: Vec<options::SshFSOption> = match matches.get_many("option") {
+        None => vec![],
+        Some(items) => items.cloned().collect()
+    };
+    println!("option matches {:?}", option_matches);
 
     let mut args: Vec::<*mut libc::c_char> = Vec::new();
     for arg in ::std::env::args() {
