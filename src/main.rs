@@ -2114,7 +2114,7 @@ unsafe extern "C" fn replace_arg(
         abort();
     }
 }
-unsafe extern "C" fn start_ssh(mut conn: *mut conn) -> libc::c_int {
+unsafe fn start_ssh(mut conn: *mut conn) -> libc::c_int {
     let mut ptyname: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut sockpair: [libc::c_int; 2] = [0; 2];
     let mut pid: libc::c_int = 0;
@@ -5969,9 +5969,9 @@ unsafe extern "C" fn tokenize_on_space(mut str: *mut libc::c_char) -> *mut libc:
     }
     return start;
 }
-unsafe extern "C" fn set_ssh_command() {
+unsafe fn set_ssh_command() {
     let mut token: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut i: libc::c_int = 0 as libc::c_int;
+    let mut i: libc::c_int = 0;
     token = tokenize_on_space(sshfs.ssh_command);
     while !token.is_null() {
         if i == 0 as libc::c_int {
