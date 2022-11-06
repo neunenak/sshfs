@@ -148,6 +148,7 @@ pub fn sshfs_options() -> Command {
         .arg(
             Arg::new("ssh_protocol_1")
                 .short('1')
+                .action(ArgAction::SetTrue)
                 .help("equivalent to '-o ssh_protocol=1'"),
         )
         .arg(
