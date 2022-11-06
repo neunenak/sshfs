@@ -79,6 +79,8 @@ pub enum SshFSOption {
     DirCache(bool),
     DirectIO,
     MaxConns(u32),
+    Discarded,
+    OtherOption(String),
 }
 
 impl TypedValueParser for SshFSOptionValueParser {
@@ -154,6 +156,15 @@ impl TypedValueParser for SshFSOptionValueParser {
             };
             return Ok(SshFSOption::DirCache(b));
         }
+        /* for backwards compatibility */
+        if let Some(rest) = value.strip_prefix("cache=") {
+            let b = match rest {
+                "yes" => true,
+                "no" => false,
+                _ => return Err(Error::new(ErrorKind::InvalidValue).with_cmd(cmd)),
+            };
+            return Ok(SshFSOption::DirCache(b));
+        }
         if let Some(rest) = value.strip_prefix("max_conns=") {
             let n = u32::from_str(rest)
                 .map_err(|_| Error::new(ErrorKind::InvalidValue).with_cmd(cmd))?;
@@ -175,10 +186,13 @@ impl TypedValueParser for SshFSOptionValueParser {
             "slave" | "passive" => SshFSOption::Slave,
             "disable_hardlink" => SshFSOption::DisableHardlink,
             "direct_io" => SshFSOption::DirectIO,
-            _ => {
-                let err = Error::new(ErrorKind::InvalidValue).with_cmd(cmd);
-                return Err(err);
-            }
+
+            "writeback_cache=no" => SshFSOption::Discarded,
+            "unreliable_append" => SshFSOption::Discarded,
+
+            /* These may come in from /etc/fstab - we just ignore them */
+            "auto" | "noauto" | "user" | "nouser" | "users" | "_netdev" => SshFSOption::Discarded,
+            other => SshFSOption::OtherOption(other.into()),
         };
 
         Ok(output)
