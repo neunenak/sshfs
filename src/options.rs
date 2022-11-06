@@ -125,7 +125,7 @@ impl TypedValueParser for SshFSOptionValueParser {
                 "none" => IdMap::None,
                 "user" => IdMap::User,
                 "file" => IdMap::File,
-                _ => return Err(Error::new(ErrorKind::InvalidValue).with_cmd(cmd))
+                _ => return Err(Error::new(ErrorKind::InvalidValue).with_cmd(cmd)),
             };
             return Ok(SshFSOption::IdMap(idmap));
         }
@@ -145,6 +145,7 @@ impl TypedValueParser for SshFSOptionValueParser {
 pub fn sshfs_options() -> Command {
     Command::new("sshfs")
         .version(version_string())
+        .after_help(print_usage())
         .arg(
             Arg::new("ssh_protocol_1")
                 .short('1')
@@ -180,7 +181,7 @@ pub fn sshfs_options() -> Command {
                 .short('o')
                 .action(ArgAction::Append)
                 .value_parser(SshFSOptionValueParser)
-                .help("mount options"),
+                .help("mount options (see below)"),
         )
         .arg(
             Arg::new("port")
@@ -208,15 +209,9 @@ pub fn sshfs_options() -> Command {
         .arg(Arg::new("mountpoint").required(true))
 }
 
-pub fn show_help(fuse_args: *mut fuse_args) {
-    let e = std::borrow::Cow::from("");
-    let first_arg = std::env::args_os().next();
-    let program_name = match first_arg {
-        Some(ref os_str) => os_str.to_string_lossy(),
-        None => e,
-    };
-
-    print_usage(&program_name);
+/*
+fn show_help(fuse_args: *mut fuse_args) {
+    print_usage();
 
     println!("FUSE Options:");
     unsafe {
@@ -224,28 +219,24 @@ pub fn show_help(fuse_args: *mut fuse_args) {
     }
     std::process::exit(0);
 }
+*/
 
-fn print_usage(progname: &str) {
-    println!(
+fn print_usage() -> String {
+    let first_arg = std::env::args_os().next();
+    let progname = match first_arg {
+        Some(ref os_str) => os_str.to_string_lossy(),
+        None => "".into(),
+    };
+
+    format!(
         r#"
-usage: {progname} [user@]host:[dir] mountpoint [options]
+-o Mount Options:
 
-    -h   --help            print help
-    -V   --version         print version
-    -f                     foreground operation
-    -s                     disable multi-threaded operation
-    -p PORT                equivalent to '-o port=PORT'
-    -C                     equivalent to '-o compression=yes'
-    -F ssh_configfile      specifies alternative ssh configuration file
-    -1                     equivalent to '-o ssh_protocol=1'
-    -o opt,[opt...]        mount options
     -o reconnect           reconnect to server
     -o delay_connect       delay connection to server
     -o sshfs_sync          synchronous writes
     -o no_readahead        synchronous reads (no speculative readahead)
     -o sync_readdir        synchronous readdir
-    -d, --debug            print some debugging information (implies -f)
-    -v, --verbose          print ssh replies and messages
     -o dir_cache=BOOL      enable caching of directory contents (names,
                            attributes, symlink targets) {{yes,no}} (default: yes)
     -o dcache_max_size=N   sets the maximum size of the directory cache (default: 10000)
@@ -289,5 +280,5 @@ usage: {progname} [user@]host:[dir] mountpoint [options]
     -o max_conns=N         open parallel SSH connections
     -o SSHOPT=VAL          ssh options (see man ssh_config)
 "#
-    );
+    )
 }

@@ -6116,7 +6116,7 @@ unsafe fn main_0(
         exit(1);
     }
     if sshfs.show_help != 0 {
-        options::show_help(&mut args);
+        //options::show_help(&mut args);
     } else {
         if (sshfs.host).is_null() {
             eprintln!("missing host");
