@@ -15,7 +15,7 @@ use libc::{FILE, time_t};
 use std::ffi::{CString, CStr};
 use std::process::exit;
 use clap::ArgMatches;
-use std::path::Path;
+use std::path::{PathBuf, Path};
 
 const IDMAP_DEFAULT: &str = if cfg!(target_os = "macos") {
     "user"
@@ -1149,6 +1149,16 @@ unsafe extern "C" fn __bswap_32(mut __bsx: u32) -> u32 {
         | (__bsx & 0xff00 as libc::c_uint) << 8 as libc::c_int
         | (__bsx & 0xff as libc::c_uint) << 24 as libc::c_int;
 }
+
+#[derive(Debug, Clone)]
+struct NewSettings {
+    mountpoint: Option<PathBuf>,
+}
+
+static mut new_sshfs: NewSettings = NewSettings {
+    mountpoint: None
+};
+
 static mut sshfs: sshfs = sshfs {
     directport: 0 as *const libc::c_char as *mut libc::c_char,
     ssh_command: 0 as *const libc::c_char as *mut libc::c_char,
@@ -5971,7 +5981,7 @@ unsafe extern "C" fn tokenize_on_space(mut str: *mut libc::c_char) -> *mut libc:
 }
 unsafe fn set_ssh_command() {
     let mut token: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut i: libc::c_int = 0;
+    let mut i: libc::c_int = 0 as libc::c_int;
     token = tokenize_on_space(sshfs.ssh_command);
     while !token.is_null() {
         if i == 0 as libc::c_int {
@@ -6052,15 +6062,15 @@ fn add_comma_escaped_hostname(args: *mut fuse_args, hostname: *const libc::c_cha
 }
 
 
-fn set_sshfs_from_options(sshfs_item: &mut sshfs, matches: &ArgMatches) {
+fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings, matches: &ArgMatches) {
 
     let connect_string = matches.get_one::<String>("connect_string").unwrap();
     let mountpoint = matches.get_one::<String>("mountpoint").unwrap();
     //TODO mountpoint handling needs to be different for cygwin
 
-
-    let mountpoint = Path::new(mountpoint).canonicalize();
-
+    println!("MP: {}", mountpoint);
+    let mountpoint: PathBuf = Path::new(mountpoint).canonicalize().unwrap();
+    new_settings.mountpoint = Some(mountpoint);
 
 
     //TODO some of these need different values on a mac
@@ -6113,7 +6123,7 @@ unsafe fn main_0(
 
     sshfs.progname = *argv.offset(0 as libc::c_int as isize);
 
-    set_sshfs_from_options(&mut sshfs, &matches);
+    set_sshfs_from_options(&mut sshfs, &mut new_sshfs, &matches);
 
     let mut sftp_server: *const libc::c_char = 0 as *const libc::c_char;
     let mut i: libc::c_int = 0;
@@ -6150,13 +6160,10 @@ unsafe fn main_0(
             );
             exit(1);
         } else {
-            if (sshfs.mountpoint).is_null() {
+            if (new_sshfs.mountpoint).is_none() {
                 eprintln!("error: no mountpoint specified");
-                fprintf(
-                    stderr,
-                    b"see `%s -h' for usage\n\0" as *const u8 as *const libc::c_char,
-                    *argv.offset(0 as libc::c_int as isize),
-                );
+                eprintln!("see {} -h for usage", "sshfs"); //TODO make this be canonical name of
+                                                           //binary
                 exit(1);
             }
         }
@@ -6302,7 +6309,15 @@ unsafe fn main_0(
         fuse_destroy(fuse);
         exit(1 as libc::c_int);
     }
-    res = fuse_mount(fuse, sshfs.mountpoint);
+    let mp: CString = match new_sshfs.mountpoint {
+        Some(ref item) => {
+            let vec = item.clone().into_os_string().into_string().unwrap().into_bytes();
+            CString::new(vec).unwrap()
+        },
+        None => panic!(),
+    };
+
+    res = fuse_mount(fuse, mp.as_ptr() as *const i8);
     if res != 0 as libc::c_int {
         fuse_destroy(fuse);
         exit(1 as libc::c_int);
