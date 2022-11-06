@@ -196,6 +196,7 @@ pub fn sshfs_options() -> Command {
         .arg(
             Arg::new("verbose")
                 .short('v')
+                .action(ArgAction::SetTrue)
                 .help("print ssh replies and messages"),
         )
         .arg(
