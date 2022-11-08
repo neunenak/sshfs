@@ -6066,7 +6066,7 @@ fn add_comma_escaped_hostname(args: *mut fuse_args, hostname: *const libc::c_cha
 
 fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings, matches: &ArgMatches) {
 
-    let connect_string = matches.get_one::<String>("connect_string").unwrap();
+    let host_string = matches.get_one::<String>("host").unwrap();
     let mountpoint = matches.get_one::<String>("mountpoint").unwrap();
     //TODO mountpoint handling needs to be different for cygwin
 

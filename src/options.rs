@@ -263,7 +263,7 @@ pub fn sshfs_options() -> Command {
                 .help("print ssh replies and messages"),
         )
         .arg(
-            Arg::new("connect_string")
+            Arg::new("host")
                 .value_names(["[user@]host:[dir]"])
                 .required(true),
         )
