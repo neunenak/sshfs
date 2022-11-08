@@ -3055,7 +3055,7 @@ unsafe extern "C" fn sftp_check_root(
                         fprintf(
                             stderr,
                             b"%s:%s: %s\n\0" as *const u8 as *const libc::c_char,
-                            sshfs.host,
+                            "sshfs_host", //TODO replace with real host ref
                             remote_dir,
                             strerror(sftp_error_to_errno(serr)),
                         );
@@ -3072,7 +3072,7 @@ unsafe extern "C" fn sftp_check_root(
                                 stderr,
                                 b"%s:%s: Not a directory\n\0" as *const u8
                                     as *const libc::c_char,
-                                sshfs.host,
+                                "sshfs_host", //TODO replace with real host reference
                                 remote_dir,
                             );
                         } else {
