@@ -15,7 +15,7 @@ build-rust:
 
 test: build-rust
     #!/usr/bin/env bash
-    /usr/bin/env python3 -m pytest test
+    /usr/bin/env python3 -m pytest test -s
 
 
 

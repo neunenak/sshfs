@@ -1154,11 +1154,13 @@ unsafe extern "C" fn __bswap_32(mut __bsx: u32) -> u32 {
 struct NewSettings {
     mountpoint: Option<PathBuf>,
     host: Option<String>,
+    base_path: Option<String>
 }
 
 static mut new_sshfs: NewSettings = NewSettings {
     mountpoint: None,
     host: None,
+    base_path: None,
 };
 
 static mut sshfs: sshfs = sshfs {
@@ -6032,13 +6034,19 @@ unsafe extern "C" fn find_base_path() -> *mut libc::c_char {
     *fresh58 = '\0' as i32 as libc::c_char;
     s = s.offset(1);
 
+
+    return s;
+}
+
+unsafe fn find_base_path_rust() {
+
     //TODO handle IPv6 parsing too
     let host = new_sshfs.host.as_ref().unwrap().clone();
     let colon_idx = host.find(":").unwrap();
-    let (first, _rest) = host.split_at(colon_idx);
+    let (first, rest) = host.split_at(colon_idx);
+    let (_, base_path) = rest.split_at(1); //Remove ':'
     new_sshfs.host = Some(first.to_string());
-
-    return s;
+    new_sshfs.base_path = Some(base_path.to_string());
 }
 
 
@@ -6266,7 +6274,12 @@ unsafe fn main_0(
         (*(sshfs.conns).offset(i as isize)).wfd = -(1 as libc::c_int);
         i += 1;
     }
-    sshfs.base_path = g_strdup(find_base_path());
+    find_base_path_rust();
+    let base_path_cstring = CString::new(new_sshfs.base_path.as_ref().unwrap().clone().into_bytes()).unwrap();
+    let _ = find_base_path();
+
+    sshfs.base_path = base_path_cstring.as_ptr() as *mut i8;
+
     if !(sshfs.ssh_command).is_null() {
         set_ssh_command();
     }
