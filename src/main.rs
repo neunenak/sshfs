@@ -6067,10 +6067,19 @@ fn add_comma_escaped_hostname(args: *mut fuse_args, hostname: *const libc::c_cha
 fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings, matches: &ArgMatches) {
 
     let host_string = matches.get_one::<String>("host").unwrap();
+
+    if host_string.contains(":") {
+        new_settings.host = Some(host_string.clone());
+    } else {
+        eprintln!("sshfs: bad host '{}'", host_string);
+        exit(1);
+    };
+
+
     let mountpoint = matches.get_one::<String>("mountpoint").unwrap();
     //TODO mountpoint handling needs to be different for cygwin
 
-    println!("MP: {}", mountpoint);
+
     let mountpoint: PathBuf = Path::new(mountpoint).canonicalize().unwrap();
     new_settings.mountpoint = Some(mountpoint);
 
@@ -6153,13 +6162,9 @@ unsafe fn main_0(
     if sshfs.show_help != 0 {
         //options::show_help(&mut args);
     } else {
-        if (sshfs.host).is_null() {
+        if new_sshfs.host.is_none() {
             eprintln!("missing host");
-            fprintf(
-                stderr,
-                b"see `%s -h' for usage\n\0" as *const u8 as *const libc::c_char,
-                *argv.offset(0 as libc::c_int as isize),
-            );
+            eprintln!("see `{} -h' for usage", "sshfs");
             exit(1);
         } else {
             if (new_sshfs.mountpoint).is_none() {
