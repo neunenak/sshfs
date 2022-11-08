@@ -1153,10 +1153,12 @@ unsafe extern "C" fn __bswap_32(mut __bsx: u32) -> u32 {
 #[derive(Debug, Clone)]
 struct NewSettings {
     mountpoint: Option<PathBuf>,
+    host: Option<String>,
 }
 
 static mut new_sshfs: NewSettings = NewSettings {
-    mountpoint: None
+    mountpoint: None,
+    host: None,
 };
 
 static mut sshfs: sshfs = sshfs {
