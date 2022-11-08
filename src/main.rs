@@ -6031,6 +6031,13 @@ unsafe extern "C" fn find_base_path() -> *mut libc::c_char {
     d = d.offset(1);
     *fresh58 = '\0' as i32 as libc::c_char;
     s = s.offset(1);
+
+    //TODO handle IPv6 parsing too
+    let host = new_sshfs.host.as_ref().unwrap().clone();
+    let colon_idx = host.find(":").unwrap();
+    let (first, _rest) = host.split_at(colon_idx);
+    new_sshfs.host = Some(first.to_string());
+
     return s;
 }
 
