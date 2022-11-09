@@ -6275,6 +6275,7 @@ unsafe fn main_0(
         i += 1;
     }
     find_base_path_rust();
+    let host_cstring = CString::new(new_sshfs.host.as_ref().unwrap().clone().into_bytes()).unwrap();
     let base_path_cstring = CString::new(new_sshfs.base_path.as_ref().unwrap().clone().into_bytes()).unwrap();
     let _ = find_base_path();
 
@@ -6286,7 +6287,9 @@ unsafe fn main_0(
     let tmp = g_strdup_printf(b"-%i\0" as *const u8 as *const libc::c_char, sshfs.ssh_ver);
     ssh_add_arg(tmp);
     g_free(tmp as gpointer);
-    ssh_add_arg(sshfs.host);
+
+
+    ssh_add_arg(host_cstring.as_ptr());
     if !(sshfs.sftp_server).is_null() {
         sftp_server = sshfs.sftp_server;
     } else if sshfs.ssh_ver == 1 as libc::c_int as libc::c_uint {
@@ -6313,7 +6316,7 @@ unsafe fn main_0(
         sshfs.max_write = 65536 as libc::c_int as libc::c_uint;
     }
 
-    add_comma_escaped_hostname(&mut args, sshfs.host);
+    add_comma_escaped_hostname(&mut args, host_cstring.as_ptr());
 
 
     if sshfs.dir_cache != 0 {
