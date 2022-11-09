@@ -6005,45 +6005,10 @@ unsafe fn set_ssh_command() {
         token = tokenize_on_space(0 as *mut libc::c_char);
     }
 }
-unsafe extern "C" fn find_base_path() -> *mut libc::c_char {
-    let mut s: *mut libc::c_char = sshfs.host;
-    let mut d: *mut libc::c_char = s;
-    while *s as libc::c_int != 0 && *s as libc::c_int != ':' as i32 {
-        if *s as libc::c_int == '[' as i32 {
-            s = s.offset(1);
-            while *s as libc::c_int != ']' as i32 {
-                if *s == 0 {
-                    fprintf(
-                        stderr,
-                        b"missing ']' in hostname\n\0" as *const u8
-                            as *const libc::c_char,
-                    );
-                    exit(1);
-                }
-                let fresh56 = d;
-                d = d.offset(1);
-                *fresh56 = *s;
-                s = s.offset(1);
-            }
-        } else {
-            let fresh57 = d;
-            d = d.offset(1);
-            *fresh57 = *s;
-        }
-        s = s.offset(1);
-    }
-    let fresh58 = d;
-    d = d.offset(1);
-    *fresh58 = '\0' as i32 as libc::c_char;
-    s = s.offset(1);
-
-
-    return s;
-}
 
 unsafe fn find_base_path_rust() {
 
-    //TODO handle IPv6 parsing too
+    //TODO handle IPv6 parsing too, the way that find_base_path does it
     let host = new_sshfs.host.as_ref().unwrap().clone();
     let colon_idx = host.find(":").unwrap();
     let (first, rest) = host.split_at(colon_idx);
@@ -6280,7 +6245,6 @@ unsafe fn main_0(
     find_base_path_rust();
     let host_cstring = CString::new(new_sshfs.host.as_ref().unwrap().clone().into_bytes()).unwrap();
     let base_path_cstring = CString::new(new_sshfs.base_path.as_ref().unwrap().clone().into_bytes()).unwrap();
-    let _ = find_base_path();
 
     sshfs.base_path = base_path_cstring.as_ptr() as *mut i8;
 
