@@ -13,9 +13,9 @@ build-c:
 build-rust:
     cargo build
 
-test: build-rust
+test *args: build-rust
     #!/usr/bin/env bash
-    /usr/bin/env python3 -m pytest test -s
+    /usr/bin/env python3 -m pytest test {{args}}
 
 
 
