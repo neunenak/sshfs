@@ -2245,9 +2245,9 @@ unsafe extern "C" fn connect_passive(mut conn: *mut conn) -> libc::c_int {
     (*conn).wfd = 1 as libc::c_int;
     return 0 as libc::c_int;
 }
-unsafe extern "C" fn connect_to(
+unsafe fn connect_to(
     mut conn: *mut conn,
-    mut host: *mut libc::c_char,
+    host: &str,
     mut port: *mut libc::c_char,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
@@ -2271,7 +2271,10 @@ unsafe extern "C" fn connect_to(
     );
     hint.ai_family = 2 as libc::c_int;
     hint.ai_socktype = SOCK_STREAM as libc::c_int;
-    err = getaddrinfo(host, port, &mut hint, &mut ai);
+
+
+    let host_cstring = CString::new(host.to_string().into_bytes()).unwrap();
+    err = getaddrinfo(host_cstring.as_ptr(), port, &mut hint, &mut ai);
     if err != 0 {
         fprintf(
             stderr,
@@ -3093,7 +3096,7 @@ unsafe fn connect_remote(mut conn: *mut conn) -> libc::c_int {
     if sshfs.passive != 0 {
         err = connect_passive(conn);
     } else if !(sshfs.directport).is_null() {
-        err = connect_to(conn, sshfs.host, sshfs.directport);
+        err = connect_to(conn, new_sshfs.host.as_ref().unwrap(), sshfs.directport);
     } else {
         err = start_ssh(conn);
     }
