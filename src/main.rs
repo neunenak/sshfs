@@ -6095,13 +6095,7 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
     };
 
     sshfs_item.nomap = NOMAP_ERROR as libc::c_int;
-
-
-
-
-
 }
-
 
 
 unsafe fn main_0(
