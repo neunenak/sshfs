@@ -1154,13 +1154,15 @@ unsafe extern "C" fn __bswap_32(mut __bsx: u32) -> u32 {
 struct NewSettings {
     mountpoint: Option<PathBuf>,
     host: Option<String>,
-    base_path: Option<String>
+    base_path: Option<String>,
+    ssh_args: Vec<String>,
 }
 
 static mut new_sshfs: NewSettings = NewSettings {
     mountpoint: None,
     host: None,
     base_path: None,
+    ssh_args: vec![],
 };
 
 static mut sshfs: sshfs = sshfs {
@@ -1959,6 +1961,10 @@ unsafe extern "C" fn buf_get_entries(
         i = i.wrapping_add(1);
     }
     return 0 as libc::c_int;
+}
+
+unsafe fn ssh_add_arg_rust(arg: &str) {
+    new_sshfs.ssh_args.push(arg.to_string());
 }
 unsafe extern "C" fn ssh_add_arg(mut arg: *const libc::c_char) {
     if fuse_opt_add_arg(&mut sshfs.ssh_args, arg) == -(1 as libc::c_int) {
