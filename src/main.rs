@@ -5961,6 +5961,7 @@ unsafe extern "C" fn read_password() -> libc::c_int {
     *(sshfs.password)
         .offset((n + 1 as libc::c_int) as isize) = '\0' as i32 as libc::c_char;
     ssh_add_arg(b"-oNumberOfPasswordPrompts=1\0" as *const u8 as *const libc::c_char);
+    ssh_add_arg_rust("-oNumberOfPasswordPrompts=1");
     return 0 as libc::c_int;
 }
 unsafe extern "C" fn tokenize_on_space(mut str: *mut libc::c_char) -> *mut libc::c_char {
@@ -6101,6 +6102,8 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
     };
 
     sshfs_item.nomap = NOMAP_ERROR as libc::c_int;
+
+
 }
 
 
@@ -6119,12 +6122,39 @@ unsafe fn main_0(
 
     set_sshfs_from_options(&mut sshfs, &mut new_sshfs, &matches);
 
-    let mut sftp_server: *const libc::c_char = 0 as *const libc::c_char;
     let mut i: libc::c_int = 0;
     ssh_add_arg(b"ssh\0" as *const u8 as *const libc::c_char);
     ssh_add_arg(b"-x\0" as *const u8 as *const libc::c_char);
     ssh_add_arg(b"-a\0" as *const u8 as *const libc::c_char);
     ssh_add_arg(b"-oClearAllForwardings=yes\0" as *const u8 as *const libc::c_char);
+
+    for arg in ["ssh", "-x", "-a", "-oClearAllFOrwardings=yes"].iter() {
+        ssh_add_arg_rust(arg);
+    }
+
+    // Handle ssh args
+    if *matches.get_one::<bool>("compression").unwrap_or(&false) {
+        ssh_add_arg_rust("-oCompression=yes");
+    }
+    if let Some(p) = matches.get_one::<String>("port") {
+        ssh_add_arg_rust(&format!("-oPort={}", p));
+    }
+    if let Some(f) = matches.get_one::<String>("ssh_configfile") {
+        ssh_add_arg_rust(&format!("-F{}", f));
+    }
+
+    let option_matches: Vec<options::SshFSOption> = match matches.get_many("option") {
+        None => vec![],
+        Some(items) => items.cloned().collect()
+    };
+    //println!("option matches {:?}", option_matches);
+    for item in option_matches.iter() {
+        if let options::SshFSOption::SSHOption(opt) = item {
+            ssh_add_arg_rust(&format!("-o{}", opt));
+        }
+    }
+
+
     if fuse_opt_parse(
         &mut args,
         &mut sshfs as *mut sshfs as *mut libc::c_void,
@@ -6253,10 +6283,16 @@ unsafe fn main_0(
     }
     let tmp = g_strdup_printf(b"-%i\0" as *const u8 as *const libc::c_char, sshfs.ssh_ver);
     ssh_add_arg(tmp);
+    ssh_add_arg_rust(&format!("-{}", sshfs.ssh_ver));
     g_free(tmp as gpointer);
 
 
+
     ssh_add_arg(host_cstring.as_ptr());
+    ssh_add_arg_rust(new_sshfs.host.as_ref().unwrap());
+
+
+    let mut sftp_server: *const libc::c_char = 0 as *const libc::c_char;
     if !(sshfs.sftp_server).is_null() {
         sftp_server = sshfs.sftp_server;
     } else if sshfs.ssh_ver == 1 as libc::c_int as libc::c_uint {
@@ -6268,8 +6304,15 @@ unsafe fn main_0(
         && (strchr(sftp_server, '/' as i32)).is_null()
     {
         ssh_add_arg(b"-s\0" as *const u8 as *const libc::c_char);
+        ssh_add_arg_rust("-s");
     }
+
+    let sftp_server_rust = unsafe { CStr::from_ptr(sftp_server) };
+    let sftp_server_rust_string = sftp_server_rust.to_string_lossy().to_string();
+
     ssh_add_arg(sftp_server);
+    ssh_add_arg_rust(&sftp_server_rust_string);
+
     free(sshfs.sftp_server as *mut libc::c_void);
     res = cache_parse_options(&mut args);
     if res == -(1 as libc::c_int) {
@@ -6378,11 +6421,6 @@ pub fn main() {
     let parsed_args = options::sshfs_options();
     let matches = parsed_args.get_matches();
 
-    let option_matches: Vec<options::SshFSOption> = match matches.get_many("option") {
-        None => vec![],
-        Some(items) => items.cloned().collect()
-    };
-    println!("option matches {:?}", option_matches);
 
     let mut args: Vec::<*mut libc::c_char> = Vec::new();
     for arg in ::std::env::args() {
