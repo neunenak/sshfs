@@ -2228,6 +2228,13 @@ unsafe fn start_ssh(mut conn: *mut conn) -> libc::c_int {
                     i += 1;
                 }
                 fprintf(stderr, b"\n\0" as *const u8 as *const libc::c_char);
+
+                eprintln!("From rust!");
+                eprint!("executing ");
+                for item in new_sshfs.ssh_args.iter() {
+                    eprint!("<{}> ", item);
+                }
+                eprintln!("");
             }
             execvp(
                 *(sshfs.ssh_args.argv).offset(0 as libc::c_int as isize),
