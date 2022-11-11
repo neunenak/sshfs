@@ -1962,11 +1962,7 @@ unsafe extern "C" fn buf_get_entries(
 unsafe fn ssh_add_arg_rust(arg: &str) {
     new_sshfs.ssh_args.push(arg.to_string());
 }
-unsafe extern "C" fn ssh_add_arg(mut arg: *const libc::c_char) {
-    if fuse_opt_add_arg(&mut sshfs.ssh_args, arg) == -(1 as libc::c_int) {
-        exit(1);
-    }
-}
+
 unsafe extern "C" fn pty_expect_loop(mut conn: *mut conn) -> libc::c_int {
     let mut res: libc::c_int = 0;
     let mut buf: [libc::c_char; 256] = [0; 256];
@@ -5754,7 +5750,7 @@ unsafe extern "C" fn sshfs_opt_proc(
                     b"-o%s\0" as *const u8 as *const libc::c_char,
                     arg,
                 );
-                ssh_add_arg(tmp);
+                //ssh_add_arg(tmp);
                 g_free(tmp as gpointer);
                 return 0 as libc::c_int;
             }
@@ -5804,12 +5800,12 @@ unsafe extern "C" fn sshfs_opt_proc(
                 b"-oPort=%s\0" as *const u8 as *const libc::c_char,
                 arg.offset(2 as libc::c_int as isize),
             );
-            ssh_add_arg(tmp);
+            //ssh_add_arg(tmp);
             g_free(tmp as gpointer);
             return 0 as libc::c_int;
         }
         1 => {
-            ssh_add_arg(b"-oCompression=yes\0" as *const u8 as *const libc::c_char);
+            //ssh_add_arg(b"-oCompression=yes\0" as *const u8 as *const libc::c_char);
             return 0 as libc::c_int;
         }
         2 => {
@@ -5817,7 +5813,7 @@ unsafe extern "C" fn sshfs_opt_proc(
                 b"-F%s\0" as *const u8 as *const libc::c_char,
                 arg.offset(2 as libc::c_int as isize),
             );
-            ssh_add_arg(tmp);
+            //ssh_add_arg(tmp);
             g_free(tmp as gpointer);
             return 0 as libc::c_int;
         }
@@ -5961,7 +5957,6 @@ unsafe extern "C" fn read_password() -> libc::c_int {
     }
     *(sshfs.password)
         .offset((n + 1 as libc::c_int) as isize) = '\0' as i32 as libc::c_char;
-    ssh_add_arg(b"-oNumberOfPasswordPrompts=1\0" as *const u8 as *const libc::c_char);
     ssh_add_arg_rust("-oNumberOfPasswordPrompts=1");
     return 0 as libc::c_int;
 }
@@ -6124,10 +6119,6 @@ unsafe fn main_0(
     set_sshfs_from_options(&mut sshfs, &mut new_sshfs, &matches);
 
     let mut i: libc::c_int = 0;
-    ssh_add_arg(b"ssh\0" as *const u8 as *const libc::c_char);
-    ssh_add_arg(b"-x\0" as *const u8 as *const libc::c_char);
-    ssh_add_arg(b"-a\0" as *const u8 as *const libc::c_char);
-    ssh_add_arg(b"-oClearAllForwardings=yes\0" as *const u8 as *const libc::c_char);
 
     for arg in ["ssh", "-x", "-a", "-oClearAllFOrwardings=yes"].iter() {
         ssh_add_arg_rust(arg);
@@ -6278,14 +6269,8 @@ unsafe fn main_0(
     if !(sshfs.ssh_command).is_null() {
         set_ssh_command();
     }
-    let tmp = g_strdup_printf(b"-%i\0" as *const u8 as *const libc::c_char, sshfs.ssh_ver);
-    ssh_add_arg(tmp);
     ssh_add_arg_rust(&format!("-{}", sshfs.ssh_ver));
-    g_free(tmp as gpointer);
 
-
-
-    ssh_add_arg(host_cstring.as_ptr());
     ssh_add_arg_rust(new_sshfs.host.as_ref().unwrap());
 
 
@@ -6300,14 +6285,12 @@ unsafe fn main_0(
     if sshfs.ssh_ver != 1 as libc::c_int as libc::c_uint
         && (strchr(sftp_server, '/' as i32)).is_null()
     {
-        ssh_add_arg(b"-s\0" as *const u8 as *const libc::c_char);
         ssh_add_arg_rust("-s");
     }
 
     let sftp_server_rust = unsafe { CStr::from_ptr(sftp_server) };
     let sftp_server_rust_string = sftp_server_rust.to_string_lossy().to_string();
 
-    ssh_add_arg(sftp_server);
     ssh_add_arg_rust(&sftp_server_rust_string);
 
     free(sshfs.sftp_server as *mut libc::c_void);
