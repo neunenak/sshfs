@@ -112,10 +112,6 @@ extern "C" {
     fn write(__fd: libc::c_int, __buf: *const libc::c_void, __n: size_t) -> ssize_t;
     fn chdir(__path: *const libc::c_char) -> libc::c_int;
     fn dup2(__fd: libc::c_int, __fd2: libc::c_int) -> libc::c_int;
-    fn execvp(
-        __file: *const libc::c_char,
-        __argv: *const *mut libc::c_char,
-    ) -> libc::c_int;
     fn getpid() -> __pid_t;
     fn setsid() -> __pid_t;
     fn getuid() -> __uid_t;
@@ -2236,16 +2232,14 @@ unsafe fn start_ssh(mut conn: *mut conn) -> libc::c_int {
                 }
                 eprintln!("");
             }
-            execvp(
-                *(sshfs.ssh_args.argv).offset(0 as libc::c_int as isize),
-                sshfs.ssh_args.argv as *const *mut libc::c_char,
-            );
-            fprintf(
-                stderr,
-                b"failed to execute '%s': %s\n\0" as *const u8 as *const libc::c_char,
-                *(sshfs.ssh_args.argv).offset(0 as libc::c_int as isize),
-                strerror(*__errno_location()),
-            );
+
+            let cstring_ssh_args: Vec<CString> = new_sshfs.ssh_args.iter().cloned()
+                .map(|s| CString::new(s.into_bytes()).unwrap()).collect();
+
+            let res = nix::unistd::execvp(&cstring_ssh_args[0], cstring_ssh_args.as_slice());
+            if let Err(err) = res {
+                eprintln!("failed to execute {}: {}", &cstring_ssh_args[0].to_string_lossy(), err);
+            }
             exit(1);
         }
     }
@@ -6214,12 +6208,8 @@ unsafe fn main_0(
         sshfs.foreground = 1 as libc::c_int;
     }
     if sshfs.passive != 0 && sshfs.password_stdin != 0 {
-        fprintf(
-            stderr,
-            b"the password_stdin and passive options cannot both be specified\n\0"
-                as *const u8 as *const libc::c_char,
-        );
-        exit(1 as libc::c_int);
+        eprintln!("the password_stdin and passive options cannot both be specified");
+        exit(1);
     }
     if sshfs.password_stdin != 0 {
         res = read_password();
