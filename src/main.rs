@@ -6058,10 +6058,8 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
         exit(1);
     };
 
-
     let mountpoint = matches.get_one::<String>("mountpoint").unwrap();
     //TODO mountpoint handling needs to be different for cygwin
-
 
     let mountpoint: PathBuf = Path::new(mountpoint).canonicalize().unwrap();
     new_settings.mountpoint = Some(mountpoint);
@@ -6122,8 +6120,15 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
             SshFSOption::GidFile(file) => {
                 new_settings.gidfile = Some(file.clone());
             }
-            _ => (),
+            SshFSOption::Slave => {
+                new_settings.passive = true;
+            },
+            SshFSOption::SshCommand(command) => {
+                new_settings.ssh_command = Some(command.clone());
 
+            },
+            SshFSOption::Debug | SshFSOption::Verbose => (),
+            _ => (),
         }
     }
     if new_settings.max_read > 65536 {
@@ -6165,7 +6170,6 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
         option_matches.contains(&SshFSOption::Verbose);
 
     new_settings.foreground = *matches.get_one::<bool>("foreground").unwrap_or(&false);
-    new_settings.passive = option_matches.contains(&SshFSOption::Slave);
     let mut ssh_ver = if *matches.get_one::<bool>("ssh_protocol_1").unwrap_or(&false) {
         1
     } else {
