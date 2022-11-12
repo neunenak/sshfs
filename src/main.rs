@@ -6179,20 +6179,16 @@ unsafe fn main_0(
     {
         exit(1);
     }
-    if sshfs.show_help != 0 {
-        //options::show_help(&mut args);
+    if new_sshfs.host.is_none() {
+        eprintln!("missing host");
+        eprintln!("see `{} -h' for usage", "sshfs");
+        exit(1);
     } else {
-        if new_sshfs.host.is_none() {
-            eprintln!("missing host");
-            eprintln!("see `{} -h' for usage", "sshfs");
+        if (new_sshfs.mountpoint).is_none() {
+            eprintln!("error: no mountpoint specified");
+            eprintln!("see {} -h for usage", "sshfs"); //TODO make this be canonical name of
+                                                       //binary
             exit(1);
-        } else {
-            if (new_sshfs.mountpoint).is_none() {
-                eprintln!("error: no mountpoint specified");
-                eprintln!("see {} -h for usage", "sshfs"); //TODO make this be canonical name of
-                                                           //binary
-                exit(1);
-            }
         }
     }
     if sshfs.idmap == IDMAP_USER as libc::c_int {
