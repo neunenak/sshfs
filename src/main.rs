@@ -1159,6 +1159,7 @@ struct NewSettings {
     passive: bool,
     ssh_ver: u8,
     directport: Option<String>,
+    ssh_command: Option<String>,
 }
 
 static mut new_sshfs: NewSettings = NewSettings {
@@ -1172,6 +1173,7 @@ static mut new_sshfs: NewSettings = NewSettings {
     passive: false,
     ssh_ver: 2,
     directport: None,
+    ssh_command: None,
 };
 
 static mut sshfs: sshfs = sshfs {
@@ -2221,19 +2223,6 @@ unsafe fn start_ssh(mut conn: *mut conn) -> libc::c_int {
                 close(sshfs.ptyfd);
             }
             if new_sshfs.debug {
-                let mut i: libc::c_int = 0;
-                fprintf(stderr, b"executing\0" as *const u8 as *const libc::c_char);
-                i = 0 as libc::c_int;
-                while i < sshfs.ssh_args.argc {
-                    fprintf(
-                        stderr,
-                        b" <%s>\0" as *const u8 as *const libc::c_char,
-                        *(sshfs.ssh_args.argv).offset(i as isize),
-                    );
-                    i += 1;
-                }
-                fprintf(stderr, b"\n\0" as *const u8 as *const libc::c_char);
-
                 eprintln!("From rust!");
                 eprint!("executing ");
                 for item in new_sshfs.ssh_args.iter() {
@@ -5996,23 +5985,22 @@ unsafe extern "C" fn tokenize_on_space(mut str: *mut libc::c_char) -> *mut libc:
     }
     return start;
 }
-unsafe fn set_ssh_command() {
-    let mut token: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut i: libc::c_int = 0 as libc::c_int;
-    token = tokenize_on_space(sshfs.ssh_command);
-    while !token.is_null() {
-        if i == 0 as libc::c_int {
-            replace_arg(
-                &mut *(sshfs.ssh_args.argv).offset(0 as libc::c_int as isize),
-                token,
-            );
-        } else if fuse_opt_insert_arg(&mut sshfs.ssh_args, i, token)
-            == -1
-        {
-            exit(1);
+
+fn set_ssh_command_rust(cmd: &str) {
+    let existing = unsafe {
+        new_sshfs.ssh_args.clone()
+    };
+
+    let mut new_args = Vec::new();
+    for item in cmd.split(" ") {
+        if !item.is_empty() {
+            new_args.push(item.to_string());
         }
-        i += 1;
-        token = tokenize_on_space(0 as *mut libc::c_char);
+    }
+    new_args.extend(existing.into_iter());
+
+    unsafe {
+        new_sshfs.ssh_args = new_args;
     }
 }
 
@@ -6293,8 +6281,8 @@ unsafe fn main_0(
 
     sshfs.base_path = base_path_cstring.as_ptr() as *mut i8;
 
-    if !(sshfs.ssh_command).is_null() {
-        set_ssh_command();
+    if let Some(ssh_command) = &new_sshfs.ssh_command {
+        set_ssh_command_rust(&ssh_command);
     }
     ssh_add_arg_rust(&format!("-{}", new_sshfs.ssh_ver));
 
