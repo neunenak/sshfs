@@ -6,8 +6,8 @@ use std::str::FromStr;
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_int};
 
-use std::sync::Mutex;
 use crate::options::NoMap;
+use std::sync::Mutex;
 
 lazy_static::lazy_static! {
     static ref UID_MAP: Mutex<Option<HashMap<u32, u32>>> = Mutex::new(None);
@@ -31,7 +31,6 @@ pub enum MapBehavior {
  * uid/gid, if necessary */
 #[inline]
 pub fn translate_id(id_ptr: *mut u32, operation: &str, nomap: NoMap) -> c_int {
-
     let table = match operation {
         "uid" => UID_MAP.lock().unwrap(),
         "ruid" => REVERSE_UID_MAP.lock().unwrap(),
@@ -69,15 +68,14 @@ pub fn translate_id(id_ptr: *mut u32, operation: &str, nomap: NoMap) -> c_int {
 }
 
 #[no_mangle]
-pub extern "C" fn handle_id_maps(uid_file_path: *mut c_char, gid_file_path: *mut c_char) {
-    if uid_file_path.is_null() && gid_file_path.is_null() {
+pub extern "C" fn handle_id_maps(uid_file_path: Option<&String>, gid_file_path: Option<&String>) {
+    if uid_file_path.is_none() && gid_file_path.is_none() {
         eprintln!("Need a uidfile or gidfile with idmap=file");
         std::process::exit(1);
     }
 
-    if !uid_file_path.is_null() {
-        let uid_path_cstr = unsafe { CStr::from_ptr(uid_file_path) };
-        let (um, rum) = read_id_map(&uid_path_cstr.to_string_lossy(), IdType::Uid);
+    if let Some(file_path) = uid_file_path {
+        let (um, rum) = read_id_map(file_path, IdType::Uid);
         let mut mtx = UID_MAP.lock().unwrap();
         *mtx = Some(um);
 
@@ -85,9 +83,8 @@ pub extern "C" fn handle_id_maps(uid_file_path: *mut c_char, gid_file_path: *mut
         *mtx = Some(rum);
     }
 
-    if !gid_file_path.is_null() {
-        let gid_path_cstr = unsafe { CStr::from_ptr(gid_file_path) };
-        let (gm, rgm) = read_id_map(&gid_path_cstr.to_string_lossy(), IdType::Gid);
+    if let Some(file_path) = gid_file_path {
+        let (gm, rgm) = read_id_map(file_path, IdType::Gid);
 
         let mut mtx = GID_MAP.lock().unwrap();
         *mtx = Some(gm);
@@ -204,4 +201,3 @@ fn username_to_uid(username: &str) -> Option<u32> {
 fn groupname_to_gid(group_name: &str) -> Option<u32> {
     users::get_group_by_name(group_name).map(|g| g.gid())
 }
-

@@ -1173,6 +1173,8 @@ struct NewSettings {
     disable_hardlink: bool,
     idmap: options::IdMap,
     nomap: options::NoMap,
+    uidfile: Option<String>,
+    gidfile: Option<String>,
 }
 
 static mut new_sshfs: NewSettings = NewSettings {
@@ -1200,6 +1202,8 @@ static mut new_sshfs: NewSettings = NewSettings {
     disable_hardlink: false,
     idmap: IDMAP_DEFAULT,
     nomap: options::NoMap::Error,
+    uidfile: None,
+    gidfile: None,
 };
 
 static mut sshfs: sshfs = sshfs {
@@ -6112,6 +6116,12 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
             SshFSOption::IdMap(idmap) => {
                 new_settings.idmap = *idmap;
             }
+            SshFSOption::UidFile(file) => {
+                new_settings.uidfile = Some(file.clone());
+            }
+            SshFSOption::GidFile(file) => {
+                new_settings.gidfile = Some(file.clone());
+            }
             _ => (),
 
         }
@@ -6252,7 +6262,7 @@ unsafe fn main_0(
             sshfs.r_uid_map = 0 as *mut GHashTable;
             sshfs.r_gid_map = 0 as *mut GHashTable;
 
-            id_map::handle_id_maps(sshfs.uid_file, sshfs.gid_file);
+            id_map::handle_id_maps(new_sshfs.uidfile.as_ref(), new_sshfs.gidfile.as_ref());
         }
         IdMap::None => (),
     }
