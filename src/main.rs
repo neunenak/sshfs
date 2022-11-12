@@ -1175,6 +1175,10 @@ struct NewSettings {
     nomap: options::NoMap,
     uidfile: Option<String>,
     gidfile: Option<String>,
+    sync_write: bool,
+    sync_read: bool,
+    sync_readdir: bool,
+    max_conns: u32,
 }
 
 static mut new_sshfs: NewSettings = NewSettings {
@@ -1204,6 +1208,10 @@ static mut new_sshfs: NewSettings = NewSettings {
     nomap: options::NoMap::Error,
     uidfile: None,
     gidfile: None,
+    sync_write: false,
+    sync_read: false,
+    sync_readdir: false,
+    max_conns: 1,
 };
 
 static mut sshfs: sshfs = sshfs {
@@ -2090,8 +2098,8 @@ unsafe extern "C" fn get_conn(
     mut path: *const libc::c_char,
 ) -> *mut conn {
     let mut ce: *mut conntab_entry = 0 as *mut conntab_entry;
-    let mut i: libc::c_int = 0;
-    if sshfs.max_conns == 1 as libc::c_int {
+
+    if new_sshfs.max_conns == 1 {
         return &mut *(sshfs.conns).offset(0 as libc::c_int as isize) as *mut conn;
     }
     if !sf.is_null() {
@@ -2108,10 +2116,10 @@ unsafe extern "C" fn get_conn(
         }
         pthread_mutex_unlock(&mut sshfs.lock);
     }
-    let mut best_index: libc::c_int = 0 as libc::c_int;
+    let mut best_index= 0;
     let mut best_score: u64 = !(0 as libc::c_ulonglong) as u64;
-    i = 0 as libc::c_int;
-    while i < sshfs.max_conns {
+    let mut i = 0;
+    while i < new_sshfs.max_conns {
         let mut score: u64 = (((*(sshfs.conns).offset(i as isize)).req_count
             as u64) << 43 as libc::c_int)
             .wrapping_add(
@@ -3191,12 +3199,12 @@ unsafe extern "C" fn sshfs_init(
     mut cfg: *mut fuse_config,
 ) -> *mut libc::c_void {
     if (*conn).capable & ((1 as libc::c_int) << 0 as libc::c_int) as libc::c_uint != 0 {
-        sshfs.sync_read = 1 as libc::c_int;
+        new_sshfs.sync_read = true;
     }
     (*cfg)
         .nullpath_ok = !(sshfs.truncate_workaround != 0 || sshfs.fstat_workaround != 0)
         as libc::c_int;
-    if sshfs.max_conns > 1 as libc::c_int {
+    if new_sshfs.max_conns > 1 {
         (*cfg).nullpath_ok = 0 as libc::c_int;
     }
     (*conn).capable |= ((1 as libc::c_int) << 4 as libc::c_int) as libc::c_uint;
@@ -3889,7 +3897,7 @@ unsafe extern "C" fn sshfs_readdir(
     let mut err: libc::c_int = 0;
     let mut handle: *mut dir_handle = 0 as *mut dir_handle;
     handle = (*fi).fh as *mut dir_handle;
-    if sshfs.sync_readdir != 0 {
+    if new_sshfs.sync_readdir {
         err = sftp_readdir_sync(
             (*handle).conn,
             &mut (*handle).buf,
@@ -4182,7 +4190,7 @@ unsafe extern "C" fn sshfs_rename(
     if err == -(1 as libc::c_int) && sshfs.renamexdev_workaround != 0 {
         err = -(18 as libc::c_int);
     }
-    if err == 0 && sshfs.max_conns > 1 as libc::c_int {
+    if err == 0 && new_sshfs.max_conns > 1 {
         pthread_mutex_lock(&mut sshfs.lock);
         ce = g_hash_table_lookup(sshfs.conntab, from as gconstpointer)
             as *mut conntab_entry;
@@ -4480,7 +4488,7 @@ unsafe extern "C" fn sshfs_open_common(
     (*sf).next_pos = 0 as libc::c_int as off_t;
     pthread_mutex_lock(&mut sshfs.lock);
     (*sf).modifver = sshfs.modifver as libc::c_int;
-    if sshfs.max_conns > 1 as libc::c_int {
+    if new_sshfs.max_conns > 1 {
         ce = g_hash_table_lookup(sshfs.conntab, path as gconstpointer)
             as *mut conntab_entry;
         if ce.is_null() {
@@ -4585,7 +4593,7 @@ unsafe extern "C" fn sshfs_open_common(
         if new_sshfs.dir_cache  {
             cache_invalidate(path);
         }
-        if sshfs.max_conns > 1 as libc::c_int {
+        if new_sshfs.max_conns > 1 {
             pthread_mutex_lock(&mut sshfs.lock);
             let ref mut fresh38 = (*(*sf).conn).file_count;
             *fresh38 -= 1;
@@ -4622,7 +4630,7 @@ unsafe extern "C" fn sshfs_flush(
     if sshfs_file_is_conn(sf) == 0 {
         return -(5 as libc::c_int);
     }
-    if sshfs.sync_write != 0 {
+    if new_sshfs.sync_write {
         return 0 as libc::c_int;
     }
     pthread_mutex_lock(&mut sshfs.lock);
@@ -4691,7 +4699,7 @@ unsafe extern "C" fn sshfs_release(
     }
     buf_free(handle);
     chunk_put_locked((*sf).readahead);
-    if sshfs.max_conns > 1 as libc::c_int {
+    if new_sshfs.max_conns > 1 {
         pthread_mutex_lock(&mut sshfs.lock);
         let ref mut fresh40 = (*(*sf).conn).file_count;
         *fresh40 -= 1;
@@ -5034,7 +5042,7 @@ unsafe extern "C" fn sshfs_read(
     if sshfs_file_is_conn(sf) == 0 {
         return -(5 as libc::c_int);
     }
-    if sshfs.sync_read != 0 {
+    if new_sshfs.sync_read {
         return sshfs_sync_read(sf, rbuf, size, offset)
     } else {
         return sshfs_async_read(sf, rbuf, size, offset)
@@ -5226,7 +5234,7 @@ unsafe extern "C" fn sshfs_write(
         return -(5 as libc::c_int);
     }
     sshfs_inc_modifver();
-    if sshfs.sync_write == 0 && (*sf).write_error == 0 {
+    if new_sshfs.sync_write && (*sf).write_error == 0 {
         err = sshfs_async_write(sf, wbuf, size, offset);
     } else {
         err = sshfs_sync_write(sf, wbuf, size, offset);
@@ -6127,16 +6135,26 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
                 new_settings.ssh_command = Some(command.clone());
 
             },
-            SshFSOption::Debug | SshFSOption::Verbose | SshFSOption::SshProtocol(..) | SshFSOption::SftpServer(..) | SshFSOption::Discarded => (),
-            SshFSOption::DirectPort(..) => (),
+            SshFSOption::DirectPort(s) => {
+                new_settings.directport = Some(s.clone());
+            },
             SshFSOption::Workaround(..) => (),
-            SshFSOption::SshfsSync => (),
-            SshFSOption::NoReadahead => (),
-            SshFSOption::SyncReadahead => (),
+            SshFSOption::SshfsSync => {
+                new_settings.sync_write = true;
+            },
+            SshFSOption::NoReadahead => {
+                new_settings.sync_read = true;
+            }
+            SshFSOption::SyncReadahead => {
+                new_settings.sync_readdir = true;
+            }
             SshFSOption::SyncReaddir => (),
-            SshFSOption::MaxConns(..) => (),
+            SshFSOption::MaxConns(n) => {
+                new_settings.max_conns = *n;
+            }
             SshFSOption::SSHOption(..) => (),
             SshFSOption::OtherOption(..) => (),
+            SshFSOption::Debug | SshFSOption::Verbose | SshFSOption::SshProtocol(..) | SshFSOption::SftpServer(..) | SshFSOption::Discarded => (),
         }
     }
     if new_settings.max_read > 65536 {
@@ -6152,7 +6170,7 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
     sshfs_item.buflimit_workaround = 0 as libc::c_int;
     sshfs_item.createmode_workaround = 0 as libc::c_int;
     //sshfs_item.ssh_ver = 2;
-    sshfs_item.max_conns = 1 as libc::c_int;
+    //sshfs_item.max_conns = 1 as libc::c_int;
     sshfs_item.ptyfd = -(1 as libc::c_int);
     //sshfs_item.dir_cache = 1 as libc::c_int;
     //sshfs_item.foreground = if matches.get_flag("foreground") { 1 } else { 0 };
@@ -6210,7 +6228,6 @@ unsafe fn main_0(
 
     set_sshfs_from_options(&mut sshfs, &mut new_sshfs, &matches, &option_matches);
 
-    let mut i: libc::c_int = 0;
 
     for arg in ["ssh", "-x", "-a", "-oClearAllFOrwardings=yes"].iter() {
         ssh_add_arg_rust(arg);
@@ -6305,7 +6322,7 @@ unsafe fn main_0(
     } else {
         sshfs.max_outstanding_len = !(0 as libc::c_int) as libc::c_uint;
     }
-    if sshfs.max_conns > 1 as libc::c_int {
+    if new_sshfs.max_conns > 1 {
         if sshfs.buflimit_workaround != 0 {
             eprintln!("buflimit workaround is not supported with parallel connections");
             exit(1);
@@ -6318,13 +6335,13 @@ unsafe fn main_0(
             eprintln!("passive option cannot be specified with parallel connections");
             exit(1);
         }
-    } else if sshfs.max_conns <= 0 as libc::c_int {
+    } else if new_sshfs.max_conns <= 0 {
         eprintln!("value of max_conns option must be at least 1");
         exit(1);
     }
     sshfs
         .conns = ({
-        let mut __n: gsize = sshfs.max_conns as gsize;
+        let mut __n: gsize = new_sshfs.max_conns as gsize;
         let mut __s: gsize = ::std::mem::size_of::<conn>() as libc::c_ulong;
         let mut __p: gpointer = 0 as *mut libc::c_void;
         if __s == 1 as libc::c_int as libc::c_ulong {
@@ -6343,8 +6360,8 @@ unsafe fn main_0(
         }
         __p
     }) as *mut conn;
-    i = 0 as libc::c_int;
-    while i < sshfs.max_conns {
+    let mut i = 0;
+    while i < new_sshfs.max_conns {
         (*(sshfs.conns).offset(i as isize)).rfd = -(1 as libc::c_int);
         (*(sshfs.conns).offset(i as isize)).wfd = -(1 as libc::c_int);
         i += 1;
