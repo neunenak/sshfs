@@ -6057,23 +6057,28 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
     new_settings.max_read = 32_768;
     new_settings.max_write = 32_768;
     for item in option_matches.iter() {
-        if let SshFSOption::MaxRead(n) = item {
-            new_settings.max_read = *n;
-        }
-        if let SshFSOption::MaxWrite(n) = item {
-            new_settings.max_write = *n;
-        }
+        match item {
+            SshFSOption::MaxRead(n) => {
+                new_settings.max_read = *n;
+            }
+            SshFSOption::MaxWrite(n) => {
+                new_settings.max_write = *n;
+            }
 
-        if let SshFSOption::DirCache(b) = item {
-            new_settings.dir_cache = *b;
-        }
+            SshFSOption::DirCache(b) => {
+                new_settings.dir_cache = *b;
+            }
 
-        if let SshFSOption::DirectIO = item {
-            new_settings.direct_io = true;
-        }
+            SshFSOption::DirectIO => {
+                new_settings.direct_io = true;
+            }
 
-        if let SshFSOption::PasswordStdin = item {
-            new_settings.password_stdin = true;
+            SshFSOption::PasswordStdin => {
+                new_settings.password_stdin = true;
+            }
+
+            _ => (),
+
         }
     }
     if new_settings.max_read > 65536 {
