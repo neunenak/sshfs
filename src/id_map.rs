@@ -7,6 +7,7 @@ use std::ffi::CStr;
 use std::os::raw::{c_char, c_int};
 
 use std::sync::Mutex;
+use crate::options::NoMap;
 
 lazy_static::lazy_static! {
     static ref UID_MAP: Mutex<Option<HashMap<u32, u32>>> = Mutex::new(None);
@@ -29,7 +30,7 @@ pub enum MapBehavior {
 /* given a pointer to the uid/gid, and the mapping table, remap the
  * uid/gid, if necessary */
 #[inline]
-pub fn translate_id(id_ptr: *mut u32, operation: &str, nomap: c_int) -> c_int {
+pub fn translate_id(id_ptr: *mut u32, operation: &str, nomap: NoMap) -> c_int {
 
     let table = match operation {
         "uid" => UID_MAP.lock().unwrap(),
@@ -47,15 +48,9 @@ pub fn translate_id(id_ptr: *mut u32, operation: &str, nomap: c_int) -> c_int {
         None => return 0,
     };
 
-    let map_behavior = if nomap == 0 {
-        // NOMAP_IGNORE
-        MapBehavior::Ignore
-    } else if nomap == 1 {
-        //NOMAP_ERROR
-        MapBehavior::Error
-    } else {
-        eprintln!("internal error");
-        std::process::exit(1);
+    let map_behavior = match nomap {
+        NoMap::Ignore => MapBehavior::Ignore,
+        NoMap::Error => MapBehavior::Error,
     };
 
     let id = unsafe { *id_ptr };

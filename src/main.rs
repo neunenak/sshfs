@@ -1171,6 +1171,7 @@ struct NewSettings {
     transform_symlinks: bool,
     follow_symlinks: bool,
     disable_hardlink: bool,
+    nomap: options::NoMap,
 }
 
 static mut new_sshfs: NewSettings = NewSettings {
@@ -1196,6 +1197,7 @@ static mut new_sshfs: NewSettings = NewSettings {
     transform_symlinks: false,
     follow_symlinks: false,
     disable_hardlink: false,
+    nomap: options::NoMap::Error,
 };
 
 static mut sshfs: sshfs = sshfs {
@@ -1850,12 +1852,12 @@ unsafe extern "C" fn buf_get_attrs(
         }
     }
     if sshfs.idmap == IDMAP_FILE as libc::c_int {
-        if id_map::translate_id(&mut uid, "uid", sshfs.nomap) == -(1 as libc::c_int) {
+        if id_map::translate_id(&mut uid, "uid", new_sshfs.nomap) == -(1 as libc::c_int) {
             return -(1 as libc::c_int);
         }
     }
     if sshfs.idmap == IDMAP_FILE as libc::c_int {
-        if id_map::translate_id(&mut gid, "gid", sshfs.nomap) == -(1 as libc::c_int) {
+        if id_map::translate_id(&mut gid, "gid", new_sshfs.nomap) == -(1 as libc::c_int) {
             return -(1 as libc::c_int);
         }
     }
@@ -4294,12 +4296,12 @@ unsafe extern "C" fn sshfs_chown(
         }
     }
     if sshfs.idmap == IDMAP_FILE as libc::c_int {
-        if id_map::translate_id(&mut uid, "ruid", sshfs.nomap) == -(1 as libc::c_int) {
+        if id_map::translate_id(&mut uid, "ruid", new_sshfs.nomap) == -(1 as libc::c_int) {
             return -(1 as libc::c_int);
         }
     }
     if sshfs.idmap == IDMAP_FILE as libc::c_int {
-        if id_map::translate_id(&mut gid, "rgid", sshfs.nomap) == -(1 as libc::c_int) {
+        if id_map::translate_id(&mut gid, "rgid", new_sshfs.nomap) == -(1 as libc::c_int) {
             return -(1 as libc::c_int);
         }
     }
@@ -6057,14 +6059,8 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
     let mountpoint: PathBuf = Path::new(mountpoint).canonicalize().unwrap();
     new_settings.mountpoint = Some(mountpoint);
 
-
     //TODO some of these need different values on a mac
     sshfs_item.blksize = 4096 as libc::c_int as libc::c_uint;
-
-    /*
-    sshfs_item.max_read = 32768 as libc::c_int as libc::c_uint;
-    sshfs_item.max_write = 32768 as libc::c_int as libc::c_uint;
-    */
 
     new_settings.max_read = 32_768;
     new_settings.max_write = 32_768;
@@ -6107,6 +6103,9 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
             SshFSOption::DisableHardlink => {
                 new_settings.disable_hardlink = true;
             }
+            SshFSOption::NoMap(nomap) => {
+                new_settings.nomap = nomap.clone();
+            },
             _ => (),
 
         }
@@ -6160,7 +6159,6 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
         }
     }
     new_settings.ssh_ver = ssh_ver;
-
 }
 
 
@@ -6205,7 +6203,6 @@ unsafe fn main_0(
             ssh_add_arg_rust(&format!("-o{}", opt));
         }
     }
-
 
     if fuse_opt_parse(
         &mut args,
