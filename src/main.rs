@@ -1162,6 +1162,7 @@ struct NewSettings {
     ssh_command: Option<String>,
     max_read: u32,
     max_write: u32,
+    dir_cache: bool,
 }
 
 static mut new_sshfs: NewSettings = NewSettings {
@@ -1178,6 +1179,7 @@ static mut new_sshfs: NewSettings = NewSettings {
     ssh_command: None,
     max_read: 0,
     max_write: 0,
+    dir_cache: true,
 };
 
 static mut sshfs: sshfs = sshfs {
@@ -4400,7 +4402,7 @@ unsafe extern "C" fn sshfs_open_common(
     };
     let mut type_0: u8 = 0;
     let mut wrctr: u64 = 0 as libc::c_int as u64;
-    if sshfs.dir_cache != 0 {
+    if new_sshfs.dir_cache {
         wrctr = cache_get_write_ctr();
     }
     if sshfs.direct_io != 0 {
@@ -4549,13 +4551,13 @@ unsafe extern "C" fn sshfs_open_common(
         err = err2;
     }
     if err == 0 {
-        if sshfs.dir_cache != 0 {
+        if new_sshfs.dir_cache {
             cache_add_attr(path, &mut stbuf, wrctr);
         }
         buf_finish(&mut (*sf).handle);
         (*fi).fh = sf as libc::c_ulong;
     } else {
-        if sshfs.dir_cache != 0 {
+        if new_sshfs.dir_cache  {
             cache_invalidate(path);
         }
         if sshfs.max_conns > 1 as libc::c_int {
@@ -6057,6 +6059,11 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
         if let SshFSOption::MaxWrite(n) = item {
             new_settings.max_write = *n;
         }
+
+        if let SshFSOption::DirCache(b) = item {
+            new_settings.dir_cache = *b;
+
+        }
     }
     if new_settings.max_read > 65536 {
         new_settings.max_read = 65536;
@@ -6073,7 +6080,7 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
     //sshfs_item.ssh_ver = 2;
     sshfs_item.max_conns = 1 as libc::c_int;
     sshfs_item.ptyfd = -(1 as libc::c_int);
-    sshfs_item.dir_cache = 1 as libc::c_int;
+    //sshfs_item.dir_cache = 1 as libc::c_int;
     sshfs_item.show_help = 0 as libc::c_int;
     sshfs_item.show_version = 0 as libc::c_int;
     //sshfs_item.foreground = if matches.get_flag("foreground") { 1 } else { 0 };
@@ -6304,7 +6311,7 @@ unsafe fn main_0(
     add_comma_escaped_hostname(&mut args, host_cstring.as_ptr());
 
 
-    if sshfs.dir_cache != 0 {
+    if new_sshfs.dir_cache {
         sshfs.op = cache_wrap(&mut sshfs_oper);
     } else {
         sshfs.op = &mut sshfs_oper;
