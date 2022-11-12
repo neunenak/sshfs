@@ -3129,7 +3129,7 @@ unsafe extern "C" fn sftp_check_root(
 }
 unsafe fn connect_remote(mut conn: *mut conn) -> libc::c_int {
     let mut err: libc::c_int = 0;
-    if sshfs.passive != 0 {
+    if new_sshfs.passive {
         err = connect_passive(conn);
     } else if new_sshfs.directport.is_some() {
         let port = new_sshfs.directport.as_ref().unwrap();
