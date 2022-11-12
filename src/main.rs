@@ -6152,7 +6152,11 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
             SshFSOption::MaxConns(n) => {
                 new_settings.max_conns = *n;
             }
-            SshFSOption::SSHOption(..) => (),
+            SshFSOption::SSHOption(option) => {
+                unsafe {
+                    ssh_add_arg_rust(option);
+                }
+            },
             SshFSOption::OtherOption(..) => (),
             SshFSOption::Debug | SshFSOption::Verbose | SshFSOption::SshProtocol(..) | SshFSOption::SftpServer(..) | SshFSOption::Discarded => (),
         }
@@ -6226,12 +6230,12 @@ unsafe fn main_0(
         Some(items) => items.cloned().collect()
     };
 
-    set_sshfs_from_options(&mut sshfs, &mut new_sshfs, &matches, &option_matches);
-
-
     for arg in ["ssh", "-x", "-a", "-oClearAllFOrwardings=yes"].iter() {
         ssh_add_arg_rust(arg);
     }
+
+    set_sshfs_from_options(&mut sshfs, &mut new_sshfs, &matches, &option_matches);
+
 
     // Handle ssh args
     if *matches.get_one::<bool>("compression").unwrap_or(&false) {
