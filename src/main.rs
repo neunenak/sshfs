@@ -6284,27 +6284,23 @@ unsafe fn main_0(
 
     ssh_add_arg_rust(new_sshfs.host.as_ref().unwrap());
 
-
-    let mut sftp_server: *const libc::c_char = 0 as *const libc::c_char;
-    if !(sshfs.sftp_server).is_null() {
-        sftp_server = sshfs.sftp_server;
-    } else if new_sshfs.ssh_ver == 1 {
-        sftp_server = b"/usr/lib/sftp-server\0" as *const u8 as *const libc::c_char;
+    let mut sftp_server = if new_sshfs.ssh_ver == 1 {
+        "/usr/lib/sftp-server"
     } else {
-        sftp_server = b"sftp\0" as *const u8 as *const libc::c_char;
+        "sftp"
+    };
+
+    for item in option_matches.iter() {
+        if let options::SshFSOption::SftpServer(server) = item {
+            sftp_server = server;
+        }
     }
-    if new_sshfs.ssh_ver != 1
-        && (strchr(sftp_server, '/' as i32)).is_null()
-    {
+
+    if new_sshfs.ssh_ver != 1 && !sftp_server.contains("/") {
         ssh_add_arg_rust("-s");
     }
+    ssh_add_arg_rust(sftp_server);
 
-    let sftp_server_rust = unsafe { CStr::from_ptr(sftp_server) };
-    let sftp_server_rust_string = sftp_server_rust.to_string_lossy().to_string();
-
-    ssh_add_arg_rust(&sftp_server_rust_string);
-
-    free(sshfs.sftp_server as *mut libc::c_void);
     res = cache_parse_options(&mut args);
     if res == -(1 as libc::c_int) {
         exit(1 as libc::c_int);
