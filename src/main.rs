@@ -1164,6 +1164,7 @@ struct NewSettings {
     max_write: u32,
     dir_cache: bool,
     direct_io: bool,
+    password_stdin: bool,
 }
 
 static mut new_sshfs: NewSettings = NewSettings {
@@ -1182,6 +1183,7 @@ static mut new_sshfs: NewSettings = NewSettings {
     max_write: 0,
     dir_cache: true,
     direct_io: false,
+    password_stdin: false,
 };
 
 static mut sshfs: sshfs = sshfs {
@@ -2153,7 +2155,7 @@ unsafe fn start_ssh(mut conn: *mut conn) -> libc::c_int {
     let mut ptyname: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut sockpair: [libc::c_int; 2] = [0; 2];
     let mut pid: libc::c_int = 0;
-    if sshfs.password_stdin != 0 {
+    if new_sshfs.password_stdin {
         sshfs.ptyfd = pty_master(&mut ptyname);
         if sshfs.ptyfd == -(1 as libc::c_int) {
             return -(1 as libc::c_int);
@@ -2218,7 +2220,7 @@ unsafe fn start_ssh(mut conn: *mut conn) -> libc::c_int {
             }
             chdir(b"/\0" as *const u8 as *const libc::c_char);
             unsetenv(b"OLDPWD\0" as *const u8 as *const libc::c_char);
-            if sshfs.password_stdin != 0 {
+            if new_sshfs.password_stdin {
                 let mut sfd: libc::c_int = 0;
                 setsid();
                 sfd = open(ptyname, 0o2 as libc::c_int);
@@ -2866,7 +2868,7 @@ unsafe extern "C" fn sftp_init(mut conn: *mut conn) -> libc::c_int {
         0 as libc::c_int as size_t,
     ) == -(1 as libc::c_int))
     {
-        if !(sshfs.password_stdin != 0 && pty_expect_loop(conn) == -(1 as libc::c_int)) {
+        if !(new_sshfs.password_stdin && pty_expect_loop(conn) == -(1 as libc::c_int)) {
             if !(sftp_find_init_reply(conn, &mut version) == -(1 as libc::c_int)) {
                 sshfs.server_version = version as libc::c_int;
                 if version > 3 as libc::c_int as libc::c_uint {
@@ -6069,6 +6071,10 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
         if let SshFSOption::DirectIO = item {
             new_settings.direct_io = true;
         }
+
+        if let SshFSOption::PasswordStdin = item {
+            new_settings.password_stdin = true;
+        }
     }
     if new_settings.max_read > 65536 {
         new_settings.max_read = 65536;
@@ -6215,14 +6221,14 @@ unsafe fn main_0(
     if new_sshfs.passive {
         new_sshfs.foreground = true;
     }
-    if new_sshfs.passive && sshfs.password_stdin != 0 {
+    if new_sshfs.passive && new_sshfs.password_stdin {
         eprintln!("the password_stdin and passive options cannot both be specified");
         exit(1);
     }
-    if sshfs.password_stdin != 0 {
+    if new_sshfs.password_stdin {
         res = read_password();
-        if res == -(1 as libc::c_int) {
-            exit(1 as libc::c_int);
+        if res == -1  {
+            exit(1);
         }
     }
     if new_sshfs.debug {
@@ -6238,7 +6244,7 @@ unsafe fn main_0(
             eprintln!("buflimit workaround is not supported with parallel connections");
             exit(1);
         }
-        if sshfs.password_stdin != 0 {
+        if new_sshfs.password_stdin {
             eprintln!("password_stdin option cannot be specified with parallel connections");
             exit(1 as libc::c_int);
         }
