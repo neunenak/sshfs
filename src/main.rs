@@ -16,12 +16,12 @@ use std::ffi::{CString, CStr};
 use std::process::exit;
 use clap::ArgMatches;
 use std::path::{PathBuf, Path};
-use options::SshFSOption;
+use options::{IdMap, SshFSOption};
 
-const IDMAP_DEFAULT: &str = if cfg!(target_os = "macos") {
-    "user"
+const IDMAP_DEFAULT: IdMap = if cfg!(target_os = "macos") {
+    IdMap::User
 } else {
-    "none"
+    IdMap::None
 };
 
 extern "C" {
@@ -1171,6 +1171,7 @@ struct NewSettings {
     transform_symlinks: bool,
     follow_symlinks: bool,
     disable_hardlink: bool,
+    idmap: options::IdMap,
     nomap: options::NoMap,
 }
 
@@ -1197,6 +1198,7 @@ static mut new_sshfs: NewSettings = NewSettings {
     transform_symlinks: false,
     follow_symlinks: false,
     disable_hardlink: false,
+    idmap: IDMAP_DEFAULT,
     nomap: options::NoMap::Error,
 };
 
@@ -1851,16 +1853,17 @@ unsafe extern "C" fn buf_get_attrs(
             gid = sshfs.local_gid;
         }
     }
-    if sshfs.idmap == IDMAP_FILE as libc::c_int {
-        if id_map::translate_id(&mut uid, "uid", new_sshfs.nomap) == -(1 as libc::c_int) {
+
+    if let IdMap::File = new_sshfs.idmap {
+        if id_map::translate_id(&mut uid, "uid", new_sshfs.nomap) == -1 {
+            return -(1 as libc::c_int);
+        }
+
+        if id_map::translate_id(&mut gid, "gid", new_sshfs.nomap) == -1 {
             return -(1 as libc::c_int);
         }
     }
-    if sshfs.idmap == IDMAP_FILE as libc::c_int {
-        if id_map::translate_id(&mut gid, "gid", new_sshfs.nomap) == -(1 as libc::c_int) {
-            return -(1 as libc::c_int);
-        }
-    }
+
     memset(
         stbuf as *mut libc::c_void,
         0 as libc::c_int,
@@ -6104,8 +6107,11 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
                 new_settings.disable_hardlink = true;
             }
             SshFSOption::NoMap(nomap) => {
-                new_settings.nomap = nomap.clone();
+                new_settings.nomap = *nomap;
             },
+            SshFSOption::IdMap(idmap) => {
+                new_settings.idmap = *idmap;
+            }
             _ => (),
 
         }
@@ -6132,11 +6138,13 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
     //sshfs_item.passive = 0 as libc::c_int;
     sshfs_item.detect_uid = 0 as libc::c_int;
 
+    /*
     sshfs_item.idmap = match IDMAP_DEFAULT {
         "none" => IDMAP_NONE as i32,
         "user" => IDMAP_USER as i32,
         _ => unreachable!(),
     };
+    */
 
     sshfs_item.nomap = NOMAP_ERROR as libc::c_int;
 
@@ -6233,16 +6241,22 @@ unsafe fn main_0(
             exit(1);
         }
     }
-    if sshfs.idmap == IDMAP_USER as libc::c_int {
-        sshfs.detect_uid = 1 as libc::c_int;
-    } else if sshfs.idmap == IDMAP_FILE as libc::c_int {
-        sshfs.uid_map = 0 as *mut GHashTable;
-        sshfs.gid_map = 0 as *mut GHashTable;
-        sshfs.r_uid_map = 0 as *mut GHashTable;
-        sshfs.r_gid_map = 0 as *mut GHashTable;
+    match new_sshfs.idmap {
+        IdMap::User => {
+            sshfs.detect_uid = 1 as libc::c_int;
 
-        id_map::handle_id_maps(sshfs.uid_file, sshfs.gid_file);
+        },
+        IdMap::File => {
+            sshfs.uid_map = 0 as *mut GHashTable;
+            sshfs.gid_map = 0 as *mut GHashTable;
+            sshfs.r_uid_map = 0 as *mut GHashTable;
+            sshfs.r_gid_map = 0 as *mut GHashTable;
+
+            id_map::handle_id_maps(sshfs.uid_file, sshfs.gid_file);
+        }
+        IdMap::None => (),
     }
+
     free(sshfs.uid_file as *mut libc::c_void);
     free(sshfs.gid_file as *mut libc::c_void);
     if new_sshfs.debug {

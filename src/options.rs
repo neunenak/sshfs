@@ -25,7 +25,7 @@ fn version_string() -> String {
 #[derive(Debug, Clone)]
 struct SshFSOptionValueParser;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum IdMap {
     None,
     User,
@@ -289,6 +289,12 @@ fn print_usage() -> String {
         None => "".into(),
     };
 
+    let idmap = match IDMAP_DEFAULT {
+        IdMap::User => "user",
+        IdMap::None => "none",
+        IdMap::File => "file",
+    };
+
     format!(
         r#"
 -o Mount Options:
@@ -319,7 +325,7 @@ fn print_usage() -> String {
              [no]buflimit     fix buffer fillup bug in server (default: off)
              [no]fstat        always use stat() instead of fstat() (default: off)
              [no]createmode   always pass mode 0 to create (default: off)
-    -o idmap=TYPE          user/group ID mapping (default: {IDMAP_DEFAULT})
+    -o idmap=TYPE          user/group ID mapping (default: {idmap})
              none             no translation of the ID space
              user             only translate UID/GID of connecting user
              file             translate UIDs/GIDs contained in uidfile/gidfile
