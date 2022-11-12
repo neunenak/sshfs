@@ -65,7 +65,6 @@ pub enum SshFSOption {
     SshfsSync,
     NoReadahead,
     SyncReaddir,
-    SyncReadahead,
     Debug, // -o sshfs_debug as opposed to -d or --debug
     Verbose,
     Reconnect,

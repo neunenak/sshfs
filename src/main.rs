@@ -6145,10 +6145,9 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
             SshFSOption::NoReadahead => {
                 new_settings.sync_read = true;
             }
-            SshFSOption::SyncReadahead => {
+            SshFSOption::SyncReaddir => {
                 new_settings.sync_readdir = true;
-            }
-            SshFSOption::SyncReaddir => (),
+            },
             SshFSOption::MaxConns(n) => {
                 new_settings.max_conns = *n;
             }
