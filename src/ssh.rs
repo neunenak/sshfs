@@ -2,7 +2,7 @@ use crate::sshfs;
 use crate::{sftp_check_root, connect_remote, pthread_mutexattr_t, pthread_cond_init, pthread_mutex_init, pthread_condattr_t};
 use libc::{signal, SIGPIPE, SIG_IGN};
 
-pub unsafe fn ssh_connect() -> libc::c_int {
+pub unsafe fn ssh_connect(no_check_root: bool) -> libc::c_int {
     let mut res: libc::c_int = 0;
     res = processing_init();
     if res == -(1 as libc::c_int) {
@@ -14,8 +14,7 @@ pub unsafe fn ssh_connect() -> libc::c_int {
         {
             return -(1 as libc::c_int);
         }
-        if sshfs.no_check_root == 0
-            && sftp_check_root(
+        if !no_check_root && sftp_check_root(
                 &mut *(sshfs.conns).offset(0 as libc::c_int as isize),
                 sshfs.base_path,
             ) != 0 as libc::c_int

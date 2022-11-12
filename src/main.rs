@@ -1165,6 +1165,7 @@ struct NewSettings {
     dir_cache: bool,
     direct_io: bool,
     password_stdin: bool,
+    no_check_root: bool,
 }
 
 static mut new_sshfs: NewSettings = NewSettings {
@@ -1184,6 +1185,7 @@ static mut new_sshfs: NewSettings = NewSettings {
     dir_cache: true,
     direct_io: false,
     password_stdin: false,
+    no_check_root: false,
 };
 
 static mut sshfs: sshfs = sshfs {
@@ -6077,6 +6079,9 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
                 new_settings.password_stdin = true;
             }
 
+            SshFSOption::NoCheckRoot => {
+                new_settings.no_check_root = true;
+            },
             _ => (),
 
         }
@@ -6097,8 +6102,6 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
     sshfs_item.max_conns = 1 as libc::c_int;
     sshfs_item.ptyfd = -(1 as libc::c_int);
     //sshfs_item.dir_cache = 1 as libc::c_int;
-    sshfs_item.show_help = 0 as libc::c_int;
-    sshfs_item.show_version = 0 as libc::c_int;
     //sshfs_item.foreground = if matches.get_flag("foreground") { 1 } else { 0 };
     sshfs_item.ptypassivefd = -(1 as libc::c_int);
     sshfs_item.delay_connect = 0 as libc::c_int;
@@ -6367,7 +6370,7 @@ unsafe fn main_0(
                 as *const libc::c_char,
         );
     }
-    res = ssh::ssh_connect();
+    res = ssh::ssh_connect(new_sshfs.no_check_root);
     if res == -(1 as libc::c_int) {
         fuse_unmount(fuse);
         fuse_destroy(fuse);
