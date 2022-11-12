@@ -1167,6 +1167,9 @@ struct NewSettings {
     password_stdin: bool,
     no_check_root: bool,
     delay_connect: bool,
+    reconnect : bool,
+    transform_symlinks: bool,
+    follow_symlinks: bool,
 }
 
 static mut new_sshfs: NewSettings = NewSettings {
@@ -1188,6 +1191,9 @@ static mut new_sshfs: NewSettings = NewSettings {
     password_stdin: false,
     no_check_root: false,
     delay_connect: false,
+    reconnect: false,
+    transform_symlinks: false,
+    follow_symlinks: false,
 };
 
 static mut sshfs: sshfs = sshfs {
@@ -1961,7 +1967,7 @@ unsafe extern "C" fn buf_get_entries(
             free(longname as *mut libc::c_void);
             err = buf_get_attrs(buf, &mut stbuf, 0 as *mut libc::c_int);
             if err == 0 {
-                if sshfs.follow_symlinks != 0
+                if new_sshfs.follow_symlinks
                     && stbuf.st_mode & 0o170000 as libc::c_int as libc::c_uint
                         == 0o120000 as libc::c_int as libc::c_uint
                 {
@@ -2060,7 +2066,7 @@ unsafe extern "C" fn pty_expect_loop(mut conn: *mut conn) -> libc::c_int {
             len -= 1;
         }
     }
-    if sshfs.reconnect == 0 {
+    if !new_sshfs.reconnect {
         let mut size: size_t = getpagesize() as size_t;
         memset(sshfs.password as *mut libc::c_void, 0 as libc::c_int, size);
         munmap(sshfs.password as *mut libc::c_void, size);
@@ -2707,7 +2713,7 @@ unsafe extern "C" fn process_requests(
     sshfs.outstanding_len = 0 as libc::c_int as libc::c_uint;
     pthread_cond_broadcast(&mut sshfs.outstanding_cond);
     pthread_mutex_unlock(&mut sshfs.lock);
-    if sshfs.reconnect == 0 {
+    if !new_sshfs.reconnect {
         kill(getpid(), 15 as libc::c_int);
     }
     return 0 as *mut libc::c_void;
@@ -3598,7 +3604,7 @@ unsafe extern "C" fn sshfs_readlink(
             && count == 1 as libc::c_int as libc::c_uint
             && buf_get_string(&mut name, &mut link) != -(1 as libc::c_int)
         {
-            if sshfs.transform_symlinks != 0 {
+            if new_sshfs.transform_symlinks {
                 transform_symlink(path, &mut link);
             }
             strncpy(linkbuf, link, size.wrapping_sub(1 as libc::c_int as libc::c_ulong));
@@ -4524,7 +4530,7 @@ unsafe extern "C" fn sshfs_open_common(
     );
     buf_clear(&mut buf);
     buf_add_path(&mut buf, path);
-    type_0 = (if sshfs.follow_symlinks != 0 {
+    type_0 = (if new_sshfs.follow_symlinks {
         17 as libc::c_int
     } else {
         7 as libc::c_int
@@ -5355,7 +5361,7 @@ unsafe extern "C" fn sshfs_getattr(
         buf_add_path(&mut buf, path);
         err = sftp_request(
             get_conn(sf, path),
-            (if sshfs.follow_symlinks != 0 {
+            (if new_sshfs.follow_symlinks {
                 17 as libc::c_int
             } else {
                 7 as libc::c_int
@@ -6086,6 +6092,15 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
             },
             SshFSOption::DelayConnect => {
                 new_settings.delay_connect = true;
+            }
+            SshFSOption::FollowSymlinks => {
+                new_settings.follow_symlinks= true;
+            }
+            SshFSOption::TransformSymlinks => {
+                new_settings.transform_symlinks = true;
+            }
+            SshFSOption::Reconnect => {
+                new_settings.reconnect = true;
             }
             _ => (),
 
