@@ -1156,6 +1156,7 @@ struct NewSettings {
     debug: bool,
     verbose: bool,
     foreground: bool,
+    passive: bool,
 }
 
 static mut new_sshfs: NewSettings = NewSettings {
@@ -1166,6 +1167,7 @@ static mut new_sshfs: NewSettings = NewSettings {
     debug: false,
     verbose: false,
     foreground: false,
+    passive: false,
 };
 
 static mut sshfs: sshfs = sshfs {
@@ -6105,6 +6107,7 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
         option_matches.contains(&SshFSOption::Verbose);
 
     new_settings.foreground = *matches.get_one::<bool>("foreground").unwrap_or(&false);
+    new_settings.passive = option_matches.contains(&SshFSOption::Slave);
 }
 
 
@@ -6201,10 +6204,10 @@ unsafe fn main_0(
     if new_sshfs.debug {
         eprintln!("SSHFS version {}", SSHFS_VERSION);
     }
-    if sshfs.passive != 0 {
+    if new_sshfs.passive {
         new_sshfs.foreground = true;
     }
-    if sshfs.passive != 0 && sshfs.password_stdin != 0 {
+    if new_sshfs.passive && sshfs.password_stdin != 0 {
         eprintln!("the password_stdin and passive options cannot both be specified");
         exit(1);
     }
@@ -6231,9 +6234,9 @@ unsafe fn main_0(
             eprintln!("password_stdin option cannot be specified with parallel connections");
             exit(1 as libc::c_int);
         }
-        if sshfs.passive != 0 {
+        if new_sshfs.passive {
             eprintln!("passive option cannot be specified with parallel connections");
-            exit(1 as libc::c_int);
+            exit(1);
         }
     } else if sshfs.max_conns <= 0 as libc::c_int {
         eprintln!("value of max_conns option must be at least 1");
