@@ -1158,6 +1158,7 @@ struct NewSettings {
     foreground: bool,
     passive: bool,
     ssh_ver: u8,
+    directport: Option<String>,
 }
 
 static mut new_sshfs: NewSettings = NewSettings {
@@ -1170,6 +1171,7 @@ static mut new_sshfs: NewSettings = NewSettings {
     foreground: false,
     passive: false,
     ssh_ver: 2,
+    directport: None,
 };
 
 static mut sshfs: sshfs = sshfs {
@@ -2262,7 +2264,7 @@ unsafe extern "C" fn connect_passive(mut conn: *mut conn) -> libc::c_int {
 unsafe fn connect_to(
     mut conn: *mut conn,
     host: &str,
-    mut port: *mut libc::c_char,
+    mut port: *const libc::c_char,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
     let mut sock: libc::c_int = 0;
@@ -3101,8 +3103,10 @@ unsafe fn connect_remote(mut conn: *mut conn) -> libc::c_int {
     let mut err: libc::c_int = 0;
     if sshfs.passive != 0 {
         err = connect_passive(conn);
-    } else if !(sshfs.directport).is_null() {
-        err = connect_to(conn, new_sshfs.host.as_ref().unwrap(), sshfs.directport);
+    } else if new_sshfs.directport.is_some() {
+        let port = new_sshfs.directport.as_ref().unwrap();
+        let port_cstring = CString::new(port.to_string().into_bytes()).unwrap();
+        err = connect_to(conn, new_sshfs.host.as_ref().unwrap(), port_cstring.as_ptr());
     } else {
         err = start_ssh(conn);
     }
@@ -6415,7 +6419,7 @@ unsafe fn main_0(
     }
     fuse_opt_free_args(&mut args);
     fuse_opt_free_args(&mut sshfs.ssh_args);
-    free(sshfs.directport as *mut libc::c_void);
+    //free(sshfs.directport as *mut libc::c_void);
     return res;
 }
 
