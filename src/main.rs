@@ -5960,35 +5960,6 @@ unsafe extern "C" fn read_password() -> libc::c_int {
     ssh_add_arg_rust("-oNumberOfPasswordPrompts=1");
     return 0 as libc::c_int;
 }
-unsafe extern "C" fn tokenize_on_space(mut str: *mut libc::c_char) -> *mut libc::c_char {
-    static mut pos: *mut libc::c_char = 0 as *const libc::c_char as *mut libc::c_char;
-    let mut start: *mut libc::c_char = 0 as *mut libc::c_char;
-    if !str.is_null() {
-        pos = str;
-    }
-    if pos.is_null() {
-        return 0 as *mut libc::c_char;
-    }
-    while *pos as libc::c_int == ' ' as i32 {
-        pos = pos.offset(1);
-    }
-    start = pos;
-    while !pos.is_null() && *pos as libc::c_int != '\0' as i32 {
-        if *pos as libc::c_int == ' ' as i32
-            && *pos.offset(-(1 as libc::c_int as isize)) as libc::c_int != '\\' as i32
-        {
-            break;
-        }
-        pos = pos.offset(1);
-    }
-    if *pos as libc::c_int == '\0' as i32 {
-        pos = 0 as *mut libc::c_char;
-    } else {
-        *pos = '\0' as i32 as libc::c_char;
-        pos = pos.offset(1);
-    }
-    return start;
-}
 
 fn set_ssh_command_rust(cmd: &str) {
     let existing = unsafe {
