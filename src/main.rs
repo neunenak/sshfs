@@ -1157,6 +1157,7 @@ struct NewSettings {
     verbose: bool,
     foreground: bool,
     passive: bool,
+    ssh_ver: u8,
 }
 
 static mut new_sshfs: NewSettings = NewSettings {
@@ -1168,6 +1169,7 @@ static mut new_sshfs: NewSettings = NewSettings {
     verbose: false,
     foreground: false,
     passive: false,
+    ssh_ver: 2,
 };
 
 static mut sshfs: sshfs = sshfs {
@@ -6080,7 +6082,7 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
     sshfs_item.truncate_workaround = 0 as libc::c_int;
     sshfs_item.buflimit_workaround = 0 as libc::c_int;
     sshfs_item.createmode_workaround = 0 as libc::c_int;
-    sshfs_item.ssh_ver = 2;
+    //sshfs_item.ssh_ver = 2;
     sshfs_item.max_conns = 1 as libc::c_int;
     sshfs_item.ptyfd = -(1 as libc::c_int);
     sshfs_item.dir_cache = 1 as libc::c_int;
@@ -6089,7 +6091,7 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
     //sshfs_item.foreground = if matches.get_flag("foreground") { 1 } else { 0 };
     sshfs_item.ptypassivefd = -(1 as libc::c_int);
     sshfs_item.delay_connect = 0 as libc::c_int;
-    sshfs_item.passive = 0 as libc::c_int;
+    //sshfs_item.passive = 0 as libc::c_int;
     sshfs_item.detect_uid = 0 as libc::c_int;
 
     sshfs_item.idmap = match IDMAP_DEFAULT {
@@ -6108,6 +6110,18 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
 
     new_settings.foreground = *matches.get_one::<bool>("foreground").unwrap_or(&false);
     new_settings.passive = option_matches.contains(&SshFSOption::Slave);
+    let mut ssh_ver = if *matches.get_one::<bool>("ssh_protocol_1").unwrap_or(&false) {
+        1
+    } else {
+        2
+    };
+    for item in option_matches.iter() {
+        if let SshFSOption::SshProtocol(n) = item {
+            ssh_ver = *n;
+        }
+    }
+    new_settings.ssh_ver = ssh_ver;
+
 }
 
 
@@ -6278,7 +6292,7 @@ unsafe fn main_0(
     if !(sshfs.ssh_command).is_null() {
         set_ssh_command();
     }
-    ssh_add_arg_rust(&format!("-{}", sshfs.ssh_ver));
+    ssh_add_arg_rust(&format!("-{}", new_sshfs.ssh_ver));
 
     ssh_add_arg_rust(new_sshfs.host.as_ref().unwrap());
 
@@ -6286,12 +6300,12 @@ unsafe fn main_0(
     let mut sftp_server: *const libc::c_char = 0 as *const libc::c_char;
     if !(sshfs.sftp_server).is_null() {
         sftp_server = sshfs.sftp_server;
-    } else if sshfs.ssh_ver == 1 as libc::c_int as libc::c_uint {
+    } else if new_sshfs.ssh_ver == 1 {
         sftp_server = b"/usr/lib/sftp-server\0" as *const u8 as *const libc::c_char;
     } else {
         sftp_server = b"sftp\0" as *const u8 as *const libc::c_char;
     }
-    if sshfs.ssh_ver != 1 as libc::c_int as libc::c_uint
+    if new_sshfs.ssh_ver != 1
         && (strchr(sftp_server, '/' as i32)).is_null()
     {
         ssh_add_arg_rust("-s");

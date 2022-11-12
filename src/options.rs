@@ -56,7 +56,7 @@ pub enum SshFSOption {
     SftpServer(String), //sftp_server=SERV
     MaxRead(u32),
     MaxWrite(u32),
-    SshProtocol(u32), // ssh_protocol
+    SshProtocol(u8), // ssh_protocol
     Workaround(Workaround),
     IdMap(IdMap),
     UidFile(String),
@@ -119,7 +119,7 @@ impl TypedValueParser for SshFSOptionValueParser {
             return Ok(SshFSOption::MaxWrite(n));
         }
         if let Some(rest) = value.strip_prefix("ssh_protocol=") {
-            let n = u32::from_str(rest)
+            let n = u8::from_str(rest)
                 .map_err(|_| Error::new(ErrorKind::InvalidValue).with_cmd(cmd))?;
             return Ok(SshFSOption::SshProtocol(n));
         }
