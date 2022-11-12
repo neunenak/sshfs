@@ -16,6 +16,7 @@ use std::ffi::{CString, CStr};
 use std::process::exit;
 use clap::ArgMatches;
 use std::path::{PathBuf, Path};
+use options::SshFSOption;
 
 const IDMAP_DEFAULT: &str = if cfg!(target_os = "macos") {
     "user"
@@ -1152,6 +1153,7 @@ struct NewSettings {
     host: Option<String>,
     base_path: Option<String>,
     ssh_args: Vec<String>,
+    debug: bool,
 }
 
 static mut new_sshfs: NewSettings = NewSettings {
@@ -1159,6 +1161,7 @@ static mut new_sshfs: NewSettings = NewSettings {
     host: None,
     base_path: None,
     ssh_args: vec![],
+    debug: false
 };
 
 static mut sshfs: sshfs = sshfs {
@@ -2207,7 +2210,7 @@ unsafe fn start_ssh(mut conn: *mut conn) -> libc::c_int {
                 close(sshfs.ptypassivefd);
                 close(sshfs.ptyfd);
             }
-            if sshfs.debug != 0 {
+            if new_sshfs.debug {
                 let mut i: libc::c_int = 0;
                 fprintf(stderr, b"executing\0" as *const u8 as *const libc::c_char);
                 i = 0 as libc::c_int;
@@ -2596,7 +2599,7 @@ unsafe extern "C" fn process_one_request(mut conn: *mut conn) -> libc::c_int {
     }
     pthread_mutex_unlock(&mut sshfs.lock);
     if !req.is_null() {
-        if sshfs.debug != 0 {
+        if new_sshfs.debug {
             let mut now: timeval = timeval { tv_sec: 0, tv_usec: 0 };
             let mut difftime: libc::c_uint = 0;
             let mut msgsize: libc::c_uint = (buf.size)
@@ -2607,7 +2610,7 @@ unsafe extern "C" fn process_one_request(mut conn: *mut conn) -> libc::c_int {
             difftime = (difftime as libc::c_long
                 + (now.tv_usec - (*req).start.tv_usec)
                     / 1000 as libc::c_int as libc::c_long) as libc::c_uint;
-            if sshfs.debug != 0 {
+            if new_sshfs.debug {
                 eprintln!("[{}] {} {} bytes ({}ms)", id, type_name(type_0), msgsize, difftime);
             }
             if difftime < sshfs.min_rtt || sshfs.num_received == 0 {
@@ -2720,12 +2723,8 @@ unsafe extern "C" fn sftp_init_reply_ok(
     if buf_get_uint32(buf, version) == -(1 as libc::c_int) {
         return -(1 as libc::c_int);
     }
-    if sshfs.debug != 0 {
-        fprintf(
-            stderr,
-            b"Server version: %u\n\0" as *const u8 as *const libc::c_char,
-            *version,
-        );
+    if new_sshfs.debug {
+        eprintln!("Server version: {}", *version);
     }
     if len > 5 as libc::c_int as libc::c_uint {
         let mut buf2: buffer = buffer {
@@ -2752,7 +2751,7 @@ unsafe extern "C" fn sftp_init_reply_ok(
                 free(extdata as *mut libc::c_void);
                 return -(1 as libc::c_int);
             }
-            if sshfs.debug != 0 {
+            if new_sshfs.debug {
                 fprintf(
                     stderr,
                     b"Extension: %s <%s>\n\0" as *const u8 as *const libc::c_char,
@@ -2823,7 +2822,7 @@ unsafe extern "C" fn sftp_find_init_reply(
         if res <= 0 as libc::c_int {
             break;
         }
-        if sshfs.debug != 0 {
+        if new_sshfs.debug {
             fprintf(
                 stderr,
                 b"%c\0" as *const u8 as *const libc::c_char,
@@ -2968,12 +2967,8 @@ unsafe extern "C" fn sftp_detect_uid(mut conn: *mut conn) {
                         sshfs.remote_gid = stbuf.st_gid;
                         sshfs.local_gid = getgid();
                         sshfs.remote_uid_detected = 1 as libc::c_int;
-                        if sshfs.debug != 0 {
-                            fprintf(
-                                stderr,
-                                b"remote_uid = %i\n\0" as *const u8 as *const libc::c_char,
-                                sshfs.remote_uid,
-                            );
+                        if new_sshfs.debug {
+                            eprintln!("remote_uid = {}", sshfs.remote_uid);
                         }
                     }
                 }
@@ -3314,14 +3309,14 @@ unsafe extern "C" fn sftp_request_send(
             pthread_cond_wait(&mut sshfs.outstanding_cond, &mut sshfs.lock);
         }
         g_hash_table_insert(sshfs.reqtab, id as gulong as gpointer, req as gpointer);
-        if sshfs.debug != 0 {
+        if new_sshfs.debug {
             gettimeofday(&mut (*req).start, 0 as *mut libc::c_void);
             sshfs.num_sent = (sshfs.num_sent).wrapping_add(1);
             sshfs
                 .bytes_sent = (sshfs.bytes_sent as libc::c_ulong)
                 .wrapping_add((*req).len) as u64 as u64;
         }
-        if sshfs.debug != 0 {
+        if new_sshfs.debug {
             eprintln!("[{}] {}", id, type_name(type_0));
         }
         pthread_mutex_unlock(&mut sshfs.lock);
@@ -6050,7 +6045,7 @@ fn add_comma_escaped_hostname(args: *mut fuse_args, hostname: *const libc::c_cha
 }
 
 
-fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings, matches: &ArgMatches) {
+fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings, matches: &ArgMatches, option_matches: &Vec<options::SshFSOption>) {
 
     let host_string = matches.get_one::<String>("host").unwrap();
 
@@ -6099,7 +6094,8 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
 
     sshfs_item.nomap = NOMAP_ERROR as libc::c_int;
 
-
+    new_settings.debug = *matches.get_one::<bool>("debug").unwrap_or(&false) ||
+        option_matches.contains(&SshFSOption::Debug);
 }
 
 
@@ -6114,9 +6110,14 @@ unsafe fn main_0(
         argc, argv, allocated: 0
     };
 
+    let option_matches: Vec<options::SshFSOption> = match matches.get_many("option") {
+        None => vec![],
+        Some(items) => items.cloned().collect()
+    };
+
     sshfs.progname = *argv.offset(0 as libc::c_int as isize);
 
-    set_sshfs_from_options(&mut sshfs, &mut new_sshfs, &matches);
+    set_sshfs_from_options(&mut sshfs, &mut new_sshfs, &matches, &option_matches);
 
     let mut i: libc::c_int = 0;
 
@@ -6135,10 +6136,6 @@ unsafe fn main_0(
         ssh_add_arg_rust(&format!("-F{}", f));
     }
 
-    let option_matches: Vec<options::SshFSOption> = match matches.get_many("option") {
-        None => vec![],
-        Some(items) => items.cloned().collect()
-    };
     //println!("option matches {:?}", option_matches);
     for item in option_matches.iter() {
         if let options::SshFSOption::SSHOption(opt) = item {
@@ -6192,7 +6189,7 @@ unsafe fn main_0(
     }
     free(sshfs.uid_file as *mut libc::c_void);
     free(sshfs.gid_file as *mut libc::c_void);
-    if sshfs.debug != 0 {
+    if new_sshfs.debug {
         eprintln!("SSHFS version {}", SSHFS_VERSION);
     }
     if sshfs.passive != 0 {
@@ -6208,7 +6205,7 @@ unsafe fn main_0(
             exit(1 as libc::c_int);
         }
     }
-    if sshfs.debug != 0 {
+    if new_sshfs.debug {
         sshfs.foreground = 1 as libc::c_int;
     }
     if sshfs.buflimit_workaround != 0 {
@@ -6374,7 +6371,7 @@ unsafe fn main_0(
     fuse_remove_signal_handlers(se);
     fuse_unmount(fuse);
     fuse_destroy(fuse);
-    if sshfs.debug != 0 {
+    if new_sshfs.debug {
         let avg_rtt = if sshfs.num_sent == 0 {
             0
         } else {

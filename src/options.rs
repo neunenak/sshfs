@@ -25,20 +25,20 @@ fn version_string() -> String {
 #[derive(Debug, Clone)]
 struct SshFSOptionValueParser;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum IdMap {
     None,
     User,
     File,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum NoMap {
     Ignore,
     Error,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Workaround {
     None,
     Rename(bool),
@@ -49,7 +49,7 @@ pub enum Workaround {
     Createmode(bool),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum SshFSOption {
     DirectPort(String), // directport=PORT
     SshCommand(String),
