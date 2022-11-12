@@ -1163,6 +1163,7 @@ struct NewSettings {
     max_read: u32,
     max_write: u32,
     dir_cache: bool,
+    direct_io: bool,
 }
 
 static mut new_sshfs: NewSettings = NewSettings {
@@ -1180,6 +1181,7 @@ static mut new_sshfs: NewSettings = NewSettings {
     max_read: 0,
     max_write: 0,
     dir_cache: true,
+    direct_io: false,
 };
 
 static mut sshfs: sshfs = sshfs {
@@ -4405,7 +4407,7 @@ unsafe extern "C" fn sshfs_open_common(
     if new_sshfs.dir_cache {
         wrctr = cache_get_write_ctr();
     }
-    if sshfs.direct_io != 0 {
+    if new_sshfs.direct_io {
         (*fi).set_direct_io(1 as libc::c_int as libc::c_uint);
     }
     if (*fi).flags & 0o3 as libc::c_int == 0 as libc::c_int {
@@ -6062,7 +6064,10 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
 
         if let SshFSOption::DirCache(b) = item {
             new_settings.dir_cache = *b;
+        }
 
+        if let SshFSOption::DirectIO = item {
+            new_settings.direct_io = true;
         }
     }
     if new_settings.max_read > 65536 {
