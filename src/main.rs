@@ -1154,6 +1154,7 @@ struct NewSettings {
     base_path: Option<String>,
     ssh_args: Vec<String>,
     debug: bool,
+    verbose: bool,
 }
 
 static mut new_sshfs: NewSettings = NewSettings {
@@ -1161,7 +1162,8 @@ static mut new_sshfs: NewSettings = NewSettings {
     host: None,
     base_path: None,
     ssh_args: vec![],
-    debug: false
+    debug: false,
+    verbose: false,
 };
 
 static mut sshfs: sshfs = sshfs {
@@ -2178,7 +2180,7 @@ unsafe fn start_ssh(mut conn: *mut conn) -> libc::c_int {
                 );
                 exit(1);
             }
-            if sshfs.verbose == 0 && sshfs.foreground == 0
+            if new_sshfs.verbose && sshfs.foreground == 0
                 && devnull != -(1 as libc::c_int)
             {
                 dup2(devnull, 2 as libc::c_int);
@@ -6096,6 +6098,9 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
 
     new_settings.debug = *matches.get_one::<bool>("debug").unwrap_or(&false) ||
         option_matches.contains(&SshFSOption::Debug);
+
+    new_settings.verbose = *matches.get_one::<bool>("verbose").unwrap_or(&false) ||
+        option_matches.contains(&SshFSOption::Verbose);
 }
 
 
