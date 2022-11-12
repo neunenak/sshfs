@@ -6127,8 +6127,16 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
                 new_settings.ssh_command = Some(command.clone());
 
             },
-            SshFSOption::Debug | SshFSOption::Verbose => (),
-            _ => (),
+            SshFSOption::Debug | SshFSOption::Verbose | SshFSOption::SshProtocol(..) | SshFSOption::SftpServer(..) | SshFSOption::Discarded => (),
+            SshFSOption::DirectPort(..) => (),
+            SshFSOption::Workaround(..) => (),
+            SshFSOption::SshfsSync => (),
+            SshFSOption::NoReadahead => (),
+            SshFSOption::SyncReadahead => (),
+            SshFSOption::SyncReaddir => (),
+            SshFSOption::MaxConns(..) => (),
+            SshFSOption::SSHOption(..) => (),
+            SshFSOption::OtherOption(..) => (),
         }
     }
     if new_settings.max_read > 65536 {
