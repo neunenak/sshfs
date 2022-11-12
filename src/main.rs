@@ -1155,6 +1155,7 @@ struct NewSettings {
     ssh_args: Vec<String>,
     debug: bool,
     verbose: bool,
+    foreground: bool,
 }
 
 static mut new_sshfs: NewSettings = NewSettings {
@@ -1164,6 +1165,7 @@ static mut new_sshfs: NewSettings = NewSettings {
     ssh_args: vec![],
     debug: false,
     verbose: false,
+    foreground: false,
 };
 
 static mut sshfs: sshfs = sshfs {
@@ -2180,7 +2182,7 @@ unsafe fn start_ssh(mut conn: *mut conn) -> libc::c_int {
                 );
                 exit(1);
             }
-            if new_sshfs.verbose && sshfs.foreground == 0
+            if new_sshfs.verbose && new_sshfs.foreground
                 && devnull != -(1 as libc::c_int)
             {
                 dup2(devnull, 2 as libc::c_int);
@@ -6082,7 +6084,7 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
     sshfs_item.dir_cache = 1 as libc::c_int;
     sshfs_item.show_help = 0 as libc::c_int;
     sshfs_item.show_version = 0 as libc::c_int;
-    sshfs_item.foreground = if matches.get_flag("foreground") { 1 } else { 0 };
+    //sshfs_item.foreground = if matches.get_flag("foreground") { 1 } else { 0 };
     sshfs_item.ptypassivefd = -(1 as libc::c_int);
     sshfs_item.delay_connect = 0 as libc::c_int;
     sshfs_item.passive = 0 as libc::c_int;
@@ -6101,6 +6103,8 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
 
     new_settings.verbose = *matches.get_one::<bool>("verbose").unwrap_or(&false) ||
         option_matches.contains(&SshFSOption::Verbose);
+
+    new_settings.foreground = *matches.get_one::<bool>("foreground").unwrap_or(&false);
 }
 
 
@@ -6198,7 +6202,7 @@ unsafe fn main_0(
         eprintln!("SSHFS version {}", SSHFS_VERSION);
     }
     if sshfs.passive != 0 {
-        sshfs.foreground = 1 as libc::c_int;
+        new_sshfs.foreground = true;
     }
     if sshfs.passive != 0 && sshfs.password_stdin != 0 {
         eprintln!("the password_stdin and passive options cannot both be specified");
@@ -6211,7 +6215,7 @@ unsafe fn main_0(
         }
     }
     if new_sshfs.debug {
-        sshfs.foreground = 1 as libc::c_int;
+        new_sshfs.foreground = true;
     }
     if sshfs.buflimit_workaround != 0 {
         sshfs.max_outstanding_len = 8388608 as libc::c_int as libc::c_uint;
@@ -6357,7 +6361,7 @@ unsafe fn main_0(
         fuse_destroy(fuse);
         exit(1 as libc::c_int);
     }
-    res = fuse_daemonize(sshfs.foreground);
+    res = fuse_daemonize(if new_sshfs.foreground { 1 } else { 0 });
     if res == -(1 as libc::c_int) {
         fuse_unmount(fuse);
         fuse_destroy(fuse);
