@@ -6158,8 +6158,6 @@ unsafe fn main_0(
         Some(items) => items.cloned().collect()
     };
 
-    sshfs.progname = *argv.offset(0 as libc::c_int as isize);
-
     set_sshfs_from_options(&mut sshfs, &mut new_sshfs, &matches, &option_matches);
 
     let mut i: libc::c_int = 0;
