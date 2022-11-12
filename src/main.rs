@@ -1170,6 +1170,7 @@ struct NewSettings {
     reconnect : bool,
     transform_symlinks: bool,
     follow_symlinks: bool,
+    disable_hardlink: bool,
 }
 
 static mut new_sshfs: NewSettings = NewSettings {
@@ -1194,6 +1195,7 @@ static mut new_sshfs: NewSettings = NewSettings {
     reconnect: false,
     transform_symlinks: false,
     follow_symlinks: false,
+    disable_hardlink: false,
 };
 
 static mut sshfs: sshfs = sshfs {
@@ -4192,7 +4194,7 @@ unsafe extern "C" fn sshfs_link(
     mut to: *const libc::c_char,
 ) -> libc::c_int {
     let mut err: libc::c_int = -(38 as libc::c_int);
-    if sshfs.ext_hardlink != 0 && sshfs.disable_hardlink == 0 {
+    if sshfs.ext_hardlink != 0 && !new_sshfs.disable_hardlink {
         let mut buf: buffer = buffer {
             p: 0 as *mut u8,
             len: 0,
@@ -6101,6 +6103,9 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
             }
             SshFSOption::Reconnect => {
                 new_settings.reconnect = true;
+            }
+            SshFSOption::DisableHardlink => {
+                new_settings.disable_hardlink = true;
             }
             _ => (),
 
