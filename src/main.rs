@@ -1160,6 +1160,8 @@ struct NewSettings {
     ssh_ver: u8,
     directport: Option<String>,
     ssh_command: Option<String>,
+    max_read: u32,
+    max_write: u32,
 }
 
 static mut new_sshfs: NewSettings = NewSettings {
@@ -1174,6 +1176,8 @@ static mut new_sshfs: NewSettings = NewSettings {
     ssh_ver: 2,
     directport: None,
     ssh_command: None,
+    max_read: 0,
+    max_write: 0,
 };
 
 static mut sshfs: sshfs = sshfs {
@@ -4768,10 +4772,10 @@ unsafe extern "C" fn sshfs_send_read(
             iov_len: 0,
         }; 1];
         let mut rreq: *mut read_req = 0 as *mut read_req;
-        let mut bsize: size_t = if size < sshfs.max_read as libc::c_ulong {
+        let mut bsize: size_t = if size < new_sshfs.max_read as libc::c_ulong {
             size
         } else {
-            sshfs.max_read as libc::c_ulong
+            new_sshfs.max_read as libc::c_ulong
         };
         rreq = ({
             let mut __n: gsize = 1 as libc::c_int as gsize;
@@ -5048,10 +5052,10 @@ unsafe extern "C" fn sshfs_async_write(
             iov_base: 0 as *mut libc::c_void,
             iov_len: 0,
         }; 2];
-        let mut bsize: size_t = if size < sshfs.max_write as libc::c_ulong {
+        let mut bsize: size_t = if size < new_sshfs.max_write as libc::c_ulong {
             size
         } else {
-            sshfs.max_write as libc::c_ulong
+            new_sshfs.max_write as libc::c_ulong
         };
         buf_init(&mut buf, 0 as libc::c_int as size_t);
         buf_add_buf(&mut buf, handle);
@@ -5144,10 +5148,10 @@ unsafe extern "C" fn sshfs_sync_write(
             iov_base: 0 as *mut libc::c_void,
             iov_len: 0,
         }; 2];
-        let mut bsize: size_t = if size < sshfs.max_write as libc::c_ulong {
+        let mut bsize: size_t = if size < new_sshfs.max_write as libc::c_ulong {
             size
         } else {
-            sshfs.max_write as libc::c_ulong
+            new_sshfs.max_write as libc::c_ulong
         };
         buf_init(&mut buf, 0 as libc::c_int as size_t);
         buf_add_buf(&mut buf, handle);
@@ -5379,8 +5383,8 @@ unsafe extern "C" fn sshfs_truncate_zero(mut path: *const libc::c_char) -> libc:
     return err;
 }
 unsafe extern "C" fn calc_buf_size(mut size: off_t, mut offset: off_t) -> size_t {
-    return (if (offset + sshfs.max_read as libc::c_long) < size {
-        sshfs.max_read as libc::c_long
+    return (if (offset + new_sshfs.max_read as libc::c_long) < size {
+        new_sshfs.max_read as libc::c_long
     } else {
         size - offset
     }) as size_t;
@@ -6067,8 +6071,29 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
 
     //TODO some of these need different values on a mac
     sshfs_item.blksize = 4096 as libc::c_int as libc::c_uint;
+
+    /*
     sshfs_item.max_read = 32768 as libc::c_int as libc::c_uint;
     sshfs_item.max_write = 32768 as libc::c_int as libc::c_uint;
+    */
+
+    new_settings.max_read = 32_768;
+    new_settings.max_write = 32_768;
+    for item in option_matches.iter() {
+        if let SshFSOption::MaxRead(n) = item {
+            new_settings.max_read = *n;
+        }
+        if let SshFSOption::MaxWrite(n) = item {
+            new_settings.max_write = *n;
+        }
+    }
+    if new_settings.max_read > 65536 {
+        new_settings.max_read = 65536;
+    }
+    if new_settings.max_write > 65536 {
+        new_settings.max_write = 65536;
+    }
+
     sshfs_item.rename_workaround = 0 as libc::c_int;
     sshfs_item.renamexdev_workaround = 0 as libc::c_int;
     sshfs_item.truncate_workaround = 0 as libc::c_int;
@@ -6306,12 +6331,6 @@ unsafe fn main_0(
         exit(1 as libc::c_int);
     }
     sshfs.randseed = time(0 as *mut time_t) as libc::c_uint;
-    if sshfs.max_read > 65536 as libc::c_int as libc::c_uint {
-        sshfs.max_read = 65536 as libc::c_int as libc::c_uint;
-    }
-    if sshfs.max_write > 65536 as libc::c_int as libc::c_uint {
-        sshfs.max_write = 65536 as libc::c_int as libc::c_uint;
-    }
 
     add_comma_escaped_hostname(&mut args, host_cstring.as_ptr());
 
