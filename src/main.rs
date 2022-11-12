@@ -1166,6 +1166,7 @@ struct NewSettings {
     direct_io: bool,
     password_stdin: bool,
     no_check_root: bool,
+    delay_connect: bool,
 }
 
 static mut new_sshfs: NewSettings = NewSettings {
@@ -1186,6 +1187,7 @@ static mut new_sshfs: NewSettings = NewSettings {
     direct_io: false,
     password_stdin: false,
     no_check_root: false,
+    delay_connect: false,
 };
 
 static mut sshfs: sshfs = sshfs {
@@ -3181,7 +3183,7 @@ unsafe extern "C" fn sshfs_init(
         (*cfg).nullpath_ok = 0 as libc::c_int;
     }
     (*conn).capable |= ((1 as libc::c_int) << 4 as libc::c_int) as libc::c_uint;
-    if sshfs.delay_connect == 0 {
+    if !new_sshfs.delay_connect  {
         start_processing_thread(&mut *(sshfs.conns).offset(0 as libc::c_int as isize));
     }
     (*conn).time_gran = 1000000000 as libc::c_int as libc::c_uint;
@@ -6082,6 +6084,9 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
             SshFSOption::NoCheckRoot => {
                 new_settings.no_check_root = true;
             },
+            SshFSOption::DelayConnect => {
+                new_settings.delay_connect = true;
+            }
             _ => (),
 
         }
