@@ -9,6 +9,7 @@ mod id_map;
 mod ssh_opt;
 mod ssh;
 mod old_ssh_opt;
+mod statics;
 
 use ::libsshfs::*;
 use libfuse_sys::fuse::{fuse_opt, fuse_args, fuse_opt_parse, fuse_file_info, fuse_opt_free_args, fuse_opt_proc_t};
@@ -18,6 +19,8 @@ use std::process::exit;
 use clap::ArgMatches;
 use std::path::{PathBuf, Path};
 use options::{IdMap, SshFSOption};
+
+use statics::{NewSettings, new_sshfs};
 
 const IDMAP_DEFAULT: IdMap = if cfg!(target_os = "macos") {
     IdMap::User
@@ -1148,72 +1151,6 @@ unsafe extern "C" fn __bswap_32(mut __bsx: u32) -> u32 {
         | (__bsx & 0xff as libc::c_uint) << 24 as libc::c_int;
 }
 
-#[derive(Debug, Clone)]
-struct NewSettings {
-    mountpoint: Option<PathBuf>,
-    host: Option<String>,
-    base_path: Option<String>,
-    ssh_args: Vec<String>,
-    debug: bool,
-    verbose: bool,
-    foreground: bool,
-    passive: bool,
-    ssh_ver: u8,
-    directport: Option<String>,
-    ssh_command: Option<String>,
-    max_read: u32,
-    max_write: u32,
-    dir_cache: bool,
-    direct_io: bool,
-    password_stdin: bool,
-    no_check_root: bool,
-    delay_connect: bool,
-    reconnect : bool,
-    transform_symlinks: bool,
-    follow_symlinks: bool,
-    disable_hardlink: bool,
-    idmap: options::IdMap,
-    nomap: options::NoMap,
-    uidfile: Option<String>,
-    gidfile: Option<String>,
-    sync_write: bool,
-    sync_read: bool,
-    sync_readdir: bool,
-    max_conns: u32,
-}
-
-static mut new_sshfs: NewSettings = NewSettings {
-    mountpoint: None,
-    host: None,
-    base_path: None,
-    ssh_args: vec![],
-    debug: false,
-    verbose: false,
-    foreground: false,
-    passive: false,
-    ssh_ver: 2,
-    directport: None,
-    ssh_command: None,
-    max_read: 0,
-    max_write: 0,
-    dir_cache: true,
-    direct_io: false,
-    password_stdin: false,
-    no_check_root: false,
-    delay_connect: false,
-    reconnect: false,
-    transform_symlinks: false,
-    follow_symlinks: false,
-    disable_hardlink: false,
-    idmap: IDMAP_DEFAULT,
-    nomap: options::NoMap::Error,
-    uidfile: None,
-    gidfile: None,
-    sync_write: false,
-    sync_read: false,
-    sync_readdir: false,
-    max_conns: 1,
-};
 
 static mut sshfs: sshfs = sshfs {
     directport: 0 as *const libc::c_char as *mut libc::c_char,
