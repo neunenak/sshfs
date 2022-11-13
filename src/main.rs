@@ -3468,7 +3468,10 @@ unsafe extern "C" fn transform_symlink(
     mut linkp: *mut *mut libc::c_char,
 ) {
     let mut l: *const libc::c_char = *linkp;
-    let mut b: *const libc::c_char = sshfs.base_path;
+
+    let base_path_cstring = CString::new(global_settings.base_path.as_ref().unwrap().to_string().into_bytes()).unwrap();
+    let mut b = base_path_cstring.as_ptr();
+
     let mut newlink: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut s: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut dotdots: libc::c_int = 0;
@@ -6315,9 +6318,6 @@ unsafe fn main_0(
     }
     find_base_path_rust();
     let host_cstring = CString::new(global_settings.host.as_ref().unwrap().clone().into_bytes()).unwrap();
-    let base_path_cstring = CString::new(global_settings.base_path.as_ref().unwrap().clone().into_bytes()).unwrap();
-
-    sshfs.base_path = base_path_cstring.as_ptr() as *mut i8;
 
     if let Some(ssh_command) = &global_settings.ssh_command {
         set_ssh_command_rust(&ssh_command);

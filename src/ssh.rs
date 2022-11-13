@@ -1,9 +1,11 @@
+use crate::global_settings;
 use crate::sshfs;
 use crate::{
     connect_remote, pthread_cond_init, pthread_condattr_t, pthread_mutex_init, pthread_mutexattr_t,
     sftp_check_root,
 };
 use libc::{signal, SIGPIPE, SIG_IGN};
+use std::ffi::CString;
 
 pub unsafe fn ssh_connect(max_conns: u32, no_check_root: bool, delay_connect: bool) -> libc::c_int {
     let mut res: libc::c_int = 0;
@@ -17,11 +19,21 @@ pub unsafe fn ssh_connect(max_conns: u32, no_check_root: bool, delay_connect: bo
         {
             return -(1 as libc::c_int);
         }
+
+        let base_path_cstring = CString::new(
+            global_settings
+                .base_path
+                .as_ref()
+                .unwrap()
+                .to_string()
+                .into_bytes(),
+        )
+        .unwrap();
+        let ptr = base_path_cstring.as_ptr();
+
         if !no_check_root
-            && sftp_check_root(
-                &mut *(sshfs.conns).offset(0 as libc::c_int as isize),
-                sshfs.base_path,
-            ) != 0 as libc::c_int
+            && sftp_check_root(&mut *(sshfs.conns).offset(0 as libc::c_int as isize), ptr)
+                != 0 as libc::c_int
         {
             return -(1 as libc::c_int);
         }
