@@ -1596,28 +1596,32 @@ unsafe extern "C" fn buf_add_string(mut buf: *mut buffer, mut str: *const libc::
 #[inline]
 unsafe extern "C" fn buf_add_path(mut buf: *mut buffer, mut path: *const libc::c_char) {
     let mut realpath_0: *mut libc::c_char = 0 as *mut libc::c_char;
-    if *(sshfs.base_path).offset(0 as libc::c_int as isize) != 0 {
+
+    let base_path_cstring = CString::new(global_settings.base_path.as_ref().unwrap().to_string().into_bytes()).unwrap();
+    let ptr = base_path_cstring.as_ptr();
+
+    if *(ptr).offset(0) != 0 {
         if *path.offset(1 as libc::c_int as isize) != 0 {
-            if *(sshfs.base_path)
+            if *(ptr)
                 .offset(
-                    (strlen(sshfs.base_path))
+                    (strlen(ptr))
                         .wrapping_sub(1 as libc::c_int as libc::c_ulong) as isize,
                 ) as libc::c_int != '/' as i32
             {
                 realpath_0 = g_strdup_printf(
                     b"%s/%s\0" as *const u8 as *const libc::c_char,
-                    sshfs.base_path,
+                    ptr,
                     path.offset(1 as libc::c_int as isize),
                 );
             } else {
                 realpath_0 = g_strdup_printf(
                     b"%s%s\0" as *const u8 as *const libc::c_char,
-                    sshfs.base_path,
+                    ptr,
                     path.offset(1 as libc::c_int as isize),
                 );
             }
         } else {
-            realpath_0 = g_strdup(sshfs.base_path);
+            realpath_0 = g_strdup(ptr);
         }
     } else if *path.offset(1 as libc::c_int as isize) != 0 {
         realpath_0 = g_strdup(path.offset(1 as libc::c_int as isize));
