@@ -6215,15 +6215,10 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
 
 
 unsafe fn main_0(
-    mut argc: libc::c_int,
-    mut argv: *mut *mut libc::c_char,
+    args: &mut fuse_args,
     matches: ArgMatches,
 ) -> libc::c_int {
     let mut res: libc::c_int = 0;
-
-    let mut args = fuse_args {
-        argc, argv, allocated: 0
-    };
 
     let option_matches: Vec<options::SshFSOption> = match matches.get_many("option") {
         None => vec![],
@@ -6260,7 +6255,7 @@ unsafe fn main_0(
     }
 
     if fuse_opt_parse(
-        &mut args,
+        args,
         &mut sshfs as *mut sshfs as *mut libc::c_void,
         sshfs_opts.as_mut_ptr() as *const fuse_opt,
         Some(
@@ -6404,13 +6399,13 @@ unsafe fn main_0(
     }
     ssh_add_arg_rust(sftp_server);
 
-    res = cache_parse_options(&mut args);
+    res = cache_parse_options(args);
     if res == -(1 as libc::c_int) {
         exit(1 as libc::c_int);
     }
     sshfs.randseed = time(0 as *mut time_t) as libc::c_uint;
 
-    add_comma_escaped_hostname(&mut args, host_cstring.as_ptr());
+    add_comma_escaped_hostname(args, host_cstring.as_ptr());
 
 
     if new_sshfs.dir_cache {
@@ -6419,7 +6414,7 @@ unsafe fn main_0(
         sshfs.op = &mut sshfs_oper;
     }
     let mut fuse = fuse_new(
-        &mut args,
+        args,
         sshfs.op,
         std::mem::size_of::<fuse_operations>() as libc::c_ulong,
         0 as *mut libc::c_void,
@@ -6494,7 +6489,6 @@ unsafe fn main_0(
             sshfs.min_rtt, sshfs.max_rtt, avg_rtt, sshfs.num_connect
         );
     }
-    fuse_opt_free_args(&mut args);
     fuse_opt_free_args(&mut sshfs.ssh_args);
     //free(sshfs.directport as *mut libc::c_void);
     return res;
@@ -6505,7 +6499,6 @@ pub fn main() {
     let parsed_args = options::sshfs_options();
     let matches = parsed_args.get_matches();
 
-
     let mut args: Vec::<*mut libc::c_char> = Vec::new();
     for arg in ::std::env::args() {
         args.push(
@@ -6514,14 +6507,17 @@ pub fn main() {
                 .into_raw(),
         );
     }
-    args.push(::std::ptr::null_mut());
-    unsafe {
-        std::process::exit(
-            main_0(
-                (args.len() - 1) as libc::c_int,
-                args.as_mut_ptr() as *mut *mut libc::c_char,
-                matches
-            ) as i32,
-        )
-    }
+    args.push(std::ptr::null_mut());
+
+    let mut main_fuse_args = fuse_args {
+        argc: (args.len() - 1) as libc::c_int, argv: args.as_mut_ptr() as *mut *mut libc::c_char, allocated: 0
+    };
+
+    let output = unsafe { main_0(
+        &mut main_fuse_args,
+        matches
+    ) };
+
+
+    std::process::exit(output);
 }
