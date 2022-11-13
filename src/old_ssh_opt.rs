@@ -62,7 +62,7 @@ pub fn set_fuse_opts(sshfs_opts_handle: &mut [fuse_opt; 55]) {
             fuse_opt {
                 templ: b"workaround=%s\0" as *const u8 as *const libc::c_char,
                 offset: 48 as libc::c_ulong,
-                value: 0 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
@@ -76,210 +76,210 @@ pub fn set_fuse_opts(sshfs_opts_handle: &mut [fuse_opt; 55]) {
             fuse_opt {
                 templ: b"idmap=user\0" as *const u8 as *const libc::c_char,
                 offset: 100 as libc::c_ulong,
-                value: IDMAP_USER as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"idmap=file\0" as *const u8 as *const libc::c_char,
                 offset: 100 as libc::c_ulong,
-                value: IDMAP_FILE as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"uidfile=%s\0" as *const u8 as *const libc::c_char,
                 offset: 136 as libc::c_ulong,
-                value: 0 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"gidfile=%s\0" as *const u8 as *const libc::c_char,
                 offset: 144 as libc::c_ulong,
-                value: 0 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"nomap=ignore\0" as *const u8 as *const libc::c_char,
                 offset: 104 as libc::c_ulong,
-                value: NOMAP_IGNORE as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"nomap=error\0" as *const u8 as *const libc::c_char,
                 offset: 104 as libc::c_ulong,
-                value: NOMAP_ERROR as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"sshfs_sync\0" as *const u8 as *const libc::c_char,
                 offset: 196 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"no_readahead\0" as *const u8 as *const libc::c_char,
                 offset: 200 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"sync_readdir\0" as *const u8 as *const libc::c_char,
                 offset: 204 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"sshfs_debug\0" as *const u8 as *const libc::c_char,
                 offset: 212 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"sshfs_verbose\0" as *const u8 as *const libc::c_char,
                 offset: 216 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"reconnect\0" as *const u8 as *const libc::c_char,
                 offset: 224 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"transform_symlinks\0" as *const u8 as *const libc::c_char,
                 offset: 84 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"follow_symlinks\0" as *const u8 as *const libc::c_char,
                 offset: 88 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"no_check_root\0" as *const u8 as *const libc::c_char,
                 offset: 92 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"password_stdin\0" as *const u8 as *const libc::c_char,
                 offset: 440 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"delay_connect\0" as *const u8 as *const libc::c_char,
                 offset: 228 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"slave\0" as *const u8 as *const libc::c_char,
                 offset: 232 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"passive\0" as *const u8 as *const libc::c_char,
                 offset: 232 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"disable_hardlink\0" as *const u8 as *const libc::c_char,
                 offset: 108 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"dir_cache=yes\0" as *const u8 as *const libc::c_char,
                 offset: 112 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"dir_cache=no\0" as *const u8 as *const libc::c_char,
                 offset: 112 as libc::c_ulong,
-                value: 0 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"direct_io\0" as *const u8 as *const libc::c_char,
                 offset: 208 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"max_conns=%u\0" as *const u8 as *const libc::c_char,
                 offset: 316 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"-h\0" as *const u8 as *const libc::c_char,
                 offset: 120 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"--help\0" as *const u8 as *const libc::c_char,
                 offset: 120 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"-d\0" as *const u8 as *const libc::c_char,
                 offset: 212 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"debug\0" as *const u8 as *const libc::c_char,
                 offset: 212 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"-v\0" as *const u8 as *const libc::c_char,
                 offset: 216 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"verbose\0" as *const u8 as *const libc::c_char,
                 offset: 216 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
@@ -300,35 +300,35 @@ pub fn set_fuse_opts(sshfs_opts_handle: &mut [fuse_opt; 55]) {
             fuse_opt {
                 templ: b"-p \0" as *const u8 as *const libc::c_char,
                 offset: (1 as libc::c_uint).wrapping_neg() as libc::c_ulong,
-                value: KEY_PORT as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"-C\0" as *const u8 as *const libc::c_char,
                 offset: (1 as libc::c_uint).wrapping_neg() as libc::c_ulong,
-                value: KEY_COMPRESS as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"-F \0" as *const u8 as *const libc::c_char,
                 offset: (1 as libc::c_uint).wrapping_neg() as libc::c_ulong,
-                value: KEY_CONFIGFILE as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"cache=yes\0" as *const u8 as *const libc::c_char,
                 offset: 112 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"cache=no\0" as *const u8 as *const libc::c_char,
                 offset: 112 as libc::c_ulong,
-                value: 0 as libc::c_int,
+                value: DISCARD,
             }
         },
         {
@@ -342,56 +342,56 @@ pub fn set_fuse_opts(sshfs_opts_handle: &mut [fuse_opt; 55]) {
             fuse_opt {
                 templ: b"unreliable_append\0" as *const u8 as *const libc::c_char,
                 offset: (1 as libc::c_uint).wrapping_neg() as libc::c_ulong,
-                value: -(4 as libc::c_int),
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"auto\0" as *const u8 as *const libc::c_char,
                 offset: (1 as libc::c_uint).wrapping_neg() as libc::c_ulong,
-                value: -(4 as libc::c_int),
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"noauto\0" as *const u8 as *const libc::c_char,
                 offset: (1 as libc::c_uint).wrapping_neg() as libc::c_ulong,
-                value: -(4 as libc::c_int),
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"user\0" as *const u8 as *const libc::c_char,
                 offset: (1 as libc::c_uint).wrapping_neg() as libc::c_ulong,
-                value: -(4 as libc::c_int),
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"nouser\0" as *const u8 as *const libc::c_char,
                 offset: (1 as libc::c_uint).wrapping_neg() as libc::c_ulong,
-                value: -(4 as libc::c_int),
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"users\0" as *const u8 as *const libc::c_char,
                 offset: (1 as libc::c_uint).wrapping_neg() as libc::c_ulong,
-                value: -(4 as libc::c_int),
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: b"_netdev\0" as *const u8 as *const libc::c_char,
                 offset: (1 as libc::c_uint).wrapping_neg() as libc::c_ulong,
-                value: -(4 as libc::c_int),
+                value: DISCARD,
             }
         },
         {
             fuse_opt {
                 templ: 0 as *const libc::c_char,
                 offset: 0 as libc::c_int as libc::c_ulong,
-                value: 0 as libc::c_int,
+                value: DISCARD,
             }
         },
     ];
