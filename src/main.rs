@@ -6530,7 +6530,7 @@ unsafe extern "C" fn run_static_initializers() {
             let mut init = fuse_opt {
                 templ: b"directport=%s\0" as *const u8 as *const libc::c_char,
                 offset: 0 as libc::c_ulong,
-                value: 0 as libc::c_int,
+                value: DISCARD,
             };
             init
         },
@@ -6538,7 +6538,7 @@ unsafe extern "C" fn run_static_initializers() {
             let mut init = fuse_opt {
                 templ: b"ssh_command=%s\0" as *const u8 as *const libc::c_char,
                 offset: 8 as libc::c_ulong,
-                value: 0 as libc::c_int,
+                value: DISCARD,
             };
             init
         },
@@ -6546,7 +6546,7 @@ unsafe extern "C" fn run_static_initializers() {
             let mut init = fuse_opt {
                 templ: b"sftp_server=%s\0" as *const u8 as *const libc::c_char,
                 offset: 16 as libc::c_ulong,
-                value: 0 as libc::c_int,
+                value: DISCARD,
             };
             init
         },
@@ -6554,7 +6554,7 @@ unsafe extern "C" fn run_static_initializers() {
             let mut init = fuse_opt {
                 templ: b"max_read=%u\0" as *const u8 as *const libc::c_char,
                 offset: 184 as libc::c_ulong,
-                value: 0 as libc::c_int,
+                value: DISCARD,
             };
             init
         },
@@ -6562,7 +6562,7 @@ unsafe extern "C" fn run_static_initializers() {
             let mut init = fuse_opt {
                 templ: b"max_write=%u\0" as *const u8 as *const libc::c_char,
                 offset: 188 as libc::c_ulong,
-                value: 0 as libc::c_int,
+                value: DISCARD,
             };
             init
         },
@@ -6570,7 +6570,7 @@ unsafe extern "C" fn run_static_initializers() {
             let mut init = fuse_opt {
                 templ: b"ssh_protocol=%u\0" as *const u8 as *const libc::c_char,
                 offset: 192 as libc::c_ulong,
-                value: 0 as libc::c_int,
+                value: DISCARD
             };
             init
         },
@@ -6578,7 +6578,7 @@ unsafe extern "C" fn run_static_initializers() {
             let mut init = fuse_opt {
                 templ: b"-1\0" as *const u8 as *const libc::c_char,
                 offset: 192 as libc::c_ulong,
-                value: 1 as libc::c_int,
+                value: DISCARD,
             };
             init
         },
@@ -6594,7 +6594,7 @@ unsafe extern "C" fn run_static_initializers() {
             let mut init = fuse_opt {
                 templ: b"idmap=none\0" as *const u8 as *const libc::c_char,
                 offset: 100 as libc::c_ulong,
-                value: IDMAP_NONE as libc::c_int,
+                value: DISCARD,
             };
             init
         },
