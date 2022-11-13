@@ -6453,7 +6453,7 @@ unsafe fn main_0(
                 as *const libc::c_char,
         );
     }
-    res = ssh::ssh_connect(new_sshfs.no_check_root, new_sshfs.delay_connect);
+    res = ssh::ssh_connect(new_sshfs.max_conns, new_sshfs.no_check_root, new_sshfs.delay_connect);
     if res == -(1 as libc::c_int) {
         fuse_unmount(fuse);
         fuse_destroy(fuse);
