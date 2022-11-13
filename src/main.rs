@@ -1822,13 +1822,13 @@ unsafe extern "C" fn buf_get_attrs(
     (*stbuf).st_mode = mode;
     (*stbuf).st_nlink = 1 as libc::c_int as __nlink_t;
     (*stbuf).st_size = size as __off_t;
-    if sshfs.blksize != 0 {
-        (*stbuf).st_blksize = sshfs.blksize as __blksize_t;
+    if global_settings.blksize != 0 {
+        (*stbuf).st_blksize = global_settings.blksize as __blksize_t;
         (*stbuf)
             .st_blocks = ((size
-            .wrapping_add(sshfs.blksize as libc::c_ulong)
+            .wrapping_add(global_settings.blksize as libc::c_ulong)
             .wrapping_sub(1 as libc::c_int as libc::c_ulong) as libc::c_ulonglong
-            & !(sshfs.blksize as libc::c_ulonglong)
+            & !(global_settings.blksize as libc::c_ulonglong)
                 .wrapping_sub(1 as libc::c_int as libc::c_ulonglong))
             >> 9 as libc::c_int) as __blkcnt_t;
     }
@@ -5224,7 +5224,7 @@ unsafe extern "C" fn sshfs_statfs(
         return sshfs_ext_statvfs(path, buf);
     }
     (*buf).f_namemax = 255 as libc::c_int as libc::c_ulong;
-    (*buf).f_bsize = sshfs.blksize as libc::c_ulong;
+    (*buf).f_bsize = global_settings.blksize as libc::c_ulong;
     (*buf).f_frsize = (*buf).f_bsize;
     let ref mut fresh53 = (*buf).f_bavail;
     *fresh53 = (1000 as libc::c_ulonglong)
@@ -6010,8 +6010,11 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
     let mountpoint: PathBuf = Path::new(mountpoint).canonicalize().unwrap();
     new_settings.mountpoint = Some(mountpoint);
 
-    //TODO some of these need different values on a mac
-    sshfs_item.blksize = 4096 as libc::c_int as libc::c_uint;
+    new_settings.blksize = if cfg!(target_os = "macos") {
+        0
+    } else {
+        4096 
+    };
 
     new_settings.max_read = 32_768;
     new_settings.max_write = 32_768;
