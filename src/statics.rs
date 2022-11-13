@@ -1,6 +1,6 @@
-use std::path::PathBuf;
-use crate::options::{NoMap, IdMap};
+use crate::options::{IdMap, NoMap};
 use crate::IDMAP_DEFAULT;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub struct NewSettings {
@@ -22,7 +22,7 @@ pub struct NewSettings {
     pub password_stdin: bool,
     pub no_check_root: bool,
     pub delay_connect: bool,
-    pub reconnect : bool,
+    pub reconnect: bool,
     pub transform_symlinks: bool,
     pub follow_symlinks: bool,
     pub disable_hardlink: bool,
@@ -67,4 +67,27 @@ pub static mut new_sshfs: NewSettings = NewSettings {
     sync_read: false,
     sync_readdir: false,
     max_conns: 1,
+};
+
+#[derive(Default, Clone)]
+pub struct Counters {
+    pub bytes_sent: u64,
+    pub bytes_received: u64,
+    pub num_sent: u64,
+    pub num_received: u64,
+    pub min_rtt: u64,
+    pub max_rtt: u64,
+    pub total_rtt: u64,
+    pub num_connect: u64,
+}
+
+pub static mut counters: Counters = Counters {
+    bytes_sent: 0,
+    bytes_received: 0,
+    num_sent: 0,
+    num_received: 0,
+    min_rtt: 0,
+    max_rtt: 0,
+    total_rtt: 0,
+    num_connect: 0,
 };

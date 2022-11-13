@@ -20,7 +20,7 @@ use clap::ArgMatches;
 use std::path::{PathBuf, Path};
 use options::{IdMap, SshFSOption};
 
-use statics::{NewSettings, new_sshfs};
+use statics::{NewSettings, new_sshfs, counters};
 
 const IDMAP_DEFAULT: IdMap = if cfg!(target_os = "macos") {
     IdMap::User
@@ -2577,31 +2577,32 @@ unsafe extern "C" fn process_one_request(mut conn: *mut conn) -> libc::c_int {
     if !req.is_null() {
         if new_sshfs.debug {
             let mut now: timeval = timeval { tv_sec: 0, tv_usec: 0 };
-            let mut difftime: libc::c_uint = 0;
-            let mut msgsize: libc::c_uint = (buf.size)
-                .wrapping_add(5 as libc::c_int as libc::c_ulong) as libc::c_uint;
+            let mut difftime: u64 = 0;
+            let mut msgsize = (buf.size) + 5;
+
             gettimeofday(&mut now, 0 as *mut libc::c_void);
+
             difftime = ((now.tv_sec - (*req).start.tv_sec)
-                * 1000 as libc::c_int as libc::c_long) as libc::c_uint;
+                * 1000 ) as u64;
             difftime = (difftime as libc::c_long
                 + (now.tv_usec - (*req).start.tv_usec)
-                    / 1000 as libc::c_int as libc::c_long) as libc::c_uint;
+                / 1000 ) as u64;
+
+
             if new_sshfs.debug {
                 eprintln!("[{}] {} {} bytes ({}ms)", id, type_name(type_0), msgsize, difftime);
             }
-            if difftime < sshfs.min_rtt || sshfs.num_received == 0 {
-                sshfs.min_rtt = difftime;
+
+            if difftime < counters.min_rtt || counters.num_received == 0 {
+                counters.min_rtt = difftime;
             }
-            if difftime > sshfs.max_rtt {
-                sshfs.max_rtt = difftime;
+            if difftime > counters.max_rtt {
+                counters.max_rtt = difftime;
             }
-            sshfs
-                .total_rtt = (sshfs.total_rtt as libc::c_ulong)
-                .wrapping_add(difftime as libc::c_ulong) as u64 as u64;
-            sshfs.num_received = (sshfs.num_received).wrapping_add(1);
-            sshfs
-                .bytes_received = (sshfs.bytes_received as libc::c_ulong)
-                .wrapping_add(msgsize as libc::c_ulong) as u64 as u64;
+
+            counters.total_rtt = (counters.total_rtt).wrapping_add(difftime) as u64;
+            counters.num_received = (counters.num_received).wrapping_add(1);
+            counters.bytes_received = (counters.bytes_received).wrapping_add(msgsize) as u64;
         }
         (*req).reply = buf;
         (*req).reply_type = type_0;
@@ -3082,7 +3083,7 @@ unsafe fn connect_remote(mut conn: *mut conn) -> libc::c_int {
     if err != 0 {
         close_conn(conn);
     } else {
-        sshfs.num_connect = (sshfs.num_connect).wrapping_add(1);
+        counters.num_connect = (counters.num_connect).wrapping_add(1);
     }
     return err;
 }
@@ -3289,10 +3290,9 @@ unsafe extern "C" fn sftp_request_send(
         g_hash_table_insert(sshfs.reqtab, id as gulong as gpointer, req as gpointer);
         if new_sshfs.debug {
             gettimeofday(&mut (*req).start, 0 as *mut libc::c_void);
-            sshfs.num_sent = (sshfs.num_sent).wrapping_add(1);
-            sshfs
-                .bytes_sent = (sshfs.bytes_sent as libc::c_ulong)
-                .wrapping_add((*req).len) as u64 as u64;
+
+            counters.num_sent += 1;
+            counters.bytes_sent += (*req).len as u64;
         }
         if new_sshfs.debug {
             eprintln!("[{}] {}", id, type_name(type_0));
@@ -6410,11 +6410,12 @@ unsafe fn main_0(
     fuse_remove_signal_handlers(se);
     fuse_unmount(fuse);
     fuse_destroy(fuse);
+
     if new_sshfs.debug {
-        let avg_rtt = if sshfs.num_sent == 0 {
+        let avg_rtt = if counters.num_sent == 0 {
             0
         } else {
-            (sshfs.total_rtt).wrapping_div(sshfs.num_sent)
+            (counters.total_rtt).wrapping_div(counters.num_sent)
         };
 
         eprintln!(r#"
@@ -6422,8 +6423,8 @@ unsafe fn main_0(
             received:           {} messages, {} bytes
             rtt min/max/avg:    {}ms/{}ms/{}ms
             num connect:        {}
-            "#, sshfs.num_sent, sshfs.bytes_sent, sshfs.num_received, sshfs.bytes_received,
-            sshfs.min_rtt, sshfs.max_rtt, avg_rtt, sshfs.num_connect
+            "#, counters.num_sent, counters.bytes_sent, sshfs.num_received, counters.bytes_received,
+            sshfs.min_rtt, counters.max_rtt, avg_rtt, counters.num_connect
         );
     }
     fuse_opt_free_args(&mut sshfs.ssh_args);
