@@ -20,7 +20,7 @@ use clap::ArgMatches;
 use std::path::{PathBuf, Path};
 use options::{IdMap, SshFSOption};
 
-use statics::{NewSettings, new_sshfs, counters};
+use statics::{NewSettings, global_settings, counters};
 
 const IDMAP_DEFAULT: IdMap = if cfg!(target_os = "macos") {
     IdMap::User
@@ -1804,12 +1804,12 @@ unsafe extern "C" fn buf_get_attrs(
         }
     }
 
-    if let IdMap::File = new_sshfs.idmap {
-        if id_map::translate_id(&mut uid, "uid", new_sshfs.nomap) == -1 {
+    if let IdMap::File = global_settings.idmap {
+        if id_map::translate_id(&mut uid, "uid", global_settings.nomap) == -1 {
             return -(1 as libc::c_int);
         }
 
-        if id_map::translate_id(&mut gid, "gid", new_sshfs.nomap) == -1 {
+        if id_map::translate_id(&mut gid, "gid", global_settings.nomap) == -1 {
             return -(1 as libc::c_int);
         }
     }
@@ -1924,7 +1924,7 @@ unsafe extern "C" fn buf_get_entries(
             free(longname as *mut libc::c_void);
             err = buf_get_attrs(buf, &mut stbuf, 0 as *mut libc::c_int);
             if err == 0 {
-                if new_sshfs.follow_symlinks
+                if global_settings.follow_symlinks
                     && stbuf.st_mode & 0o170000 as libc::c_int as libc::c_uint
                         == 0o120000 as libc::c_int as libc::c_uint
                 {
@@ -1952,7 +1952,7 @@ unsafe extern "C" fn buf_get_entries(
 }
 
 unsafe fn ssh_add_arg_rust(arg: &str) {
-    new_sshfs.ssh_args.push(arg.to_string());
+    global_settings.ssh_args.push(arg.to_string());
 }
 
 unsafe extern "C" fn pty_expect_loop(mut conn: *mut conn) -> libc::c_int {
@@ -2023,7 +2023,7 @@ unsafe extern "C" fn pty_expect_loop(mut conn: *mut conn) -> libc::c_int {
             len -= 1;
         }
     }
-    if !new_sshfs.reconnect {
+    if !global_settings.reconnect {
         let mut size: size_t = getpagesize() as size_t;
         memset(sshfs.password as *mut libc::c_void, 0 as libc::c_int, size);
         munmap(sshfs.password as *mut libc::c_void, size);
@@ -2037,7 +2037,7 @@ unsafe extern "C" fn get_conn(
 ) -> *mut conn {
     let mut ce: *mut conntab_entry = 0 as *mut conntab_entry;
 
-    if new_sshfs.max_conns == 1 {
+    if global_settings.max_conns == 1 {
         return &mut *(sshfs.conns).offset(0 as libc::c_int as isize) as *mut conn;
     }
     if !sf.is_null() {
@@ -2057,7 +2057,7 @@ unsafe extern "C" fn get_conn(
     let mut best_index= 0;
     let mut best_score: u64 = !(0 as libc::c_ulonglong) as u64;
     let mut i = 0;
-    while i < new_sshfs.max_conns {
+    while i < global_settings.max_conns {
         let mut score: u64 = (((*(sshfs.conns).offset(i as isize)).req_count
             as u64) << 43 as libc::c_int)
             .wrapping_add(
@@ -2122,7 +2122,7 @@ unsafe fn start_ssh(mut conn: *mut conn) -> libc::c_int {
     let mut ptyname: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut sockpair: [libc::c_int; 2] = [0; 2];
     let mut pid: libc::c_int = 0;
-    if new_sshfs.password_stdin {
+    if global_settings.password_stdin {
         sshfs.ptyfd = pty_master(&mut ptyname);
         if sshfs.ptyfd == -(1 as libc::c_int) {
             return -(1 as libc::c_int);
@@ -2167,7 +2167,7 @@ unsafe fn start_ssh(mut conn: *mut conn) -> libc::c_int {
                 );
                 exit(1);
             }
-            if new_sshfs.verbose && new_sshfs.foreground
+            if global_settings.verbose && global_settings.foreground
                 && devnull != -(1 as libc::c_int)
             {
                 dup2(devnull, 2 as libc::c_int);
@@ -2187,7 +2187,7 @@ unsafe fn start_ssh(mut conn: *mut conn) -> libc::c_int {
             }
             chdir(b"/\0" as *const u8 as *const libc::c_char);
             unsetenv(b"OLDPWD\0" as *const u8 as *const libc::c_char);
-            if new_sshfs.password_stdin {
+            if global_settings.password_stdin {
                 let mut sfd: libc::c_int = 0;
                 setsid();
                 sfd = open(ptyname, 0o2 as libc::c_int);
@@ -2199,16 +2199,16 @@ unsafe fn start_ssh(mut conn: *mut conn) -> libc::c_int {
                 close(sshfs.ptypassivefd);
                 close(sshfs.ptyfd);
             }
-            if new_sshfs.debug {
+            if global_settings.debug {
                 eprintln!("From rust!");
                 eprint!("executing ");
-                for item in new_sshfs.ssh_args.iter() {
+                for item in global_settings.ssh_args.iter() {
                     eprint!("<{}> ", item);
                 }
                 eprintln!("");
             }
 
-            let cstring_ssh_args: Vec<CString> = new_sshfs.ssh_args.iter().cloned()
+            let cstring_ssh_args: Vec<CString> = global_settings.ssh_args.iter().cloned()
                 .map(|s| CString::new(s.into_bytes()).unwrap()).collect();
 
             let res = nix::unistd::execvp(&cstring_ssh_args[0], cstring_ssh_args.as_slice());
@@ -2575,7 +2575,7 @@ unsafe extern "C" fn process_one_request(mut conn: *mut conn) -> libc::c_int {
     }
     pthread_mutex_unlock(&mut sshfs.lock);
     if !req.is_null() {
-        if new_sshfs.debug {
+        if global_settings.debug {
             let mut now: timeval = timeval { tv_sec: 0, tv_usec: 0 };
             let mut difftime: u64 = 0;
             let mut msgsize = (buf.size) + 5;
@@ -2589,7 +2589,7 @@ unsafe extern "C" fn process_one_request(mut conn: *mut conn) -> libc::c_int {
                 / 1000 ) as u64;
 
 
-            if new_sshfs.debug {
+            if global_settings.debug {
                 eprintln!("[{}] {} {} bytes ({}ms)", id, type_name(type_0), msgsize, difftime);
             }
 
@@ -2671,7 +2671,7 @@ unsafe extern "C" fn process_requests(
     sshfs.outstanding_len = 0 as libc::c_int as libc::c_uint;
     pthread_cond_broadcast(&mut sshfs.outstanding_cond);
     pthread_mutex_unlock(&mut sshfs.lock);
-    if !new_sshfs.reconnect {
+    if !global_settings.reconnect {
         kill(getpid(), 15 as libc::c_int);
     }
     return 0 as *mut libc::c_void;
@@ -2700,7 +2700,7 @@ unsafe extern "C" fn sftp_init_reply_ok(
     if buf_get_uint32(buf, version) == -(1 as libc::c_int) {
         return -(1 as libc::c_int);
     }
-    if new_sshfs.debug {
+    if global_settings.debug {
         eprintln!("Server version: {}", *version);
     }
     if len > 5 as libc::c_int as libc::c_uint {
@@ -2728,7 +2728,7 @@ unsafe extern "C" fn sftp_init_reply_ok(
                 free(extdata as *mut libc::c_void);
                 return -(1 as libc::c_int);
             }
-            if new_sshfs.debug {
+            if global_settings.debug {
                 fprintf(
                     stderr,
                     b"Extension: %s <%s>\n\0" as *const u8 as *const libc::c_char,
@@ -2799,7 +2799,7 @@ unsafe extern "C" fn sftp_find_init_reply(
         if res <= 0 as libc::c_int {
             break;
         }
-        if new_sshfs.debug {
+        if global_settings.debug {
             fprintf(
                 stderr,
                 b"%c\0" as *const u8 as *const libc::c_char,
@@ -2836,7 +2836,7 @@ unsafe extern "C" fn sftp_init(mut conn: *mut conn) -> libc::c_int {
         0 as libc::c_int as size_t,
     ) == -(1 as libc::c_int))
     {
-        if !(new_sshfs.password_stdin && pty_expect_loop(conn) == -(1 as libc::c_int)) {
+        if !(global_settings.password_stdin && pty_expect_loop(conn) == -(1 as libc::c_int)) {
             if !(sftp_find_init_reply(conn, &mut version) == -(1 as libc::c_int)) {
                 sshfs.server_version = version as libc::c_int;
                 if version > 3 as libc::c_int as libc::c_uint {
@@ -2944,7 +2944,7 @@ unsafe extern "C" fn sftp_detect_uid(mut conn: *mut conn) {
                         sshfs.remote_gid = stbuf.st_gid;
                         sshfs.local_gid = getgid();
                         sshfs.remote_uid_detected = 1 as libc::c_int;
-                        if new_sshfs.debug {
+                        if global_settings.debug {
                             eprintln!("remote_uid = {}", sshfs.remote_uid);
                         }
                     }
@@ -3068,12 +3068,12 @@ unsafe extern "C" fn sftp_check_root(
 }
 unsafe fn connect_remote(mut conn: *mut conn) -> libc::c_int {
     let mut err: libc::c_int = 0;
-    if new_sshfs.passive {
+    if global_settings.passive {
         err = connect_passive(conn);
-    } else if new_sshfs.directport.is_some() {
-        let port = new_sshfs.directport.as_ref().unwrap();
+    } else if global_settings.directport.is_some() {
+        let port = global_settings.directport.as_ref().unwrap();
         let port_cstring = CString::new(port.to_string().into_bytes()).unwrap();
-        err = connect_to(conn, new_sshfs.host.as_ref().unwrap(), port_cstring.as_ptr());
+        err = connect_to(conn, global_settings.host.as_ref().unwrap(), port_cstring.as_ptr());
     } else {
         err = start_ssh(conn);
     }
@@ -3138,16 +3138,16 @@ unsafe extern "C" fn sshfs_init(
     mut cfg: *mut fuse_config,
 ) -> *mut libc::c_void {
     if (*conn).capable & ((1 as libc::c_int) << 0 as libc::c_int) as libc::c_uint != 0 {
-        new_sshfs.sync_read = true;
+        global_settings.sync_read = true;
     }
     (*cfg)
         .nullpath_ok = !(sshfs.truncate_workaround != 0 || sshfs.fstat_workaround != 0)
         as libc::c_int;
-    if new_sshfs.max_conns > 1 {
+    if global_settings.max_conns > 1 {
         (*cfg).nullpath_ok = 0 as libc::c_int;
     }
     (*conn).capable |= ((1 as libc::c_int) << 4 as libc::c_int) as libc::c_uint;
-    if !new_sshfs.delay_connect  {
+    if !global_settings.delay_connect  {
         start_processing_thread(&mut *(sshfs.conns).offset(0 as libc::c_int as isize));
     }
     (*conn).time_gran = 1000000000 as libc::c_int as libc::c_uint;
@@ -3288,13 +3288,13 @@ unsafe extern "C" fn sftp_request_send(
             pthread_cond_wait(&mut sshfs.outstanding_cond, &mut sshfs.lock);
         }
         g_hash_table_insert(sshfs.reqtab, id as gulong as gpointer, req as gpointer);
-        if new_sshfs.debug {
+        if global_settings.debug {
             gettimeofday(&mut (*req).start, 0 as *mut libc::c_void);
 
             counters.num_sent += 1;
             counters.bytes_sent += (*req).len as u64;
         }
-        if new_sshfs.debug {
+        if global_settings.debug {
             eprintln!("[{}] {}", id, type_name(type_0));
         }
         pthread_mutex_unlock(&mut sshfs.lock);
@@ -3561,7 +3561,7 @@ unsafe extern "C" fn sshfs_readlink(
             && count == 1 as libc::c_int as libc::c_uint
             && buf_get_string(&mut name, &mut link) != -(1 as libc::c_int)
         {
-            if new_sshfs.transform_symlinks {
+            if global_settings.transform_symlinks {
                 transform_symlink(path, &mut link);
             }
             strncpy(linkbuf, link, size.wrapping_sub(1 as libc::c_int as libc::c_ulong));
@@ -3835,7 +3835,7 @@ unsafe extern "C" fn sshfs_readdir(
     let mut err: libc::c_int = 0;
     let mut handle: *mut dir_handle = 0 as *mut dir_handle;
     handle = (*fi).fh as *mut dir_handle;
-    if new_sshfs.sync_readdir {
+    if global_settings.sync_readdir {
         err = sftp_readdir_sync(
             (*handle).conn,
             &mut (*handle).buf,
@@ -4128,7 +4128,7 @@ unsafe extern "C" fn sshfs_rename(
     if err == -(1 as libc::c_int) && sshfs.renamexdev_workaround != 0 {
         err = -(18 as libc::c_int);
     }
-    if err == 0 && new_sshfs.max_conns > 1 {
+    if err == 0 && global_settings.max_conns > 1 {
         pthread_mutex_lock(&mut sshfs.lock);
         ce = g_hash_table_lookup(sshfs.conntab, from as gconstpointer)
             as *mut conntab_entry;
@@ -4149,7 +4149,7 @@ unsafe extern "C" fn sshfs_link(
     mut to: *const libc::c_char,
 ) -> libc::c_int {
     let mut err: libc::c_int = -(38 as libc::c_int);
-    if sshfs.ext_hardlink != 0 && !new_sshfs.disable_hardlink {
+    if sshfs.ext_hardlink != 0 && !global_settings.disable_hardlink {
         let mut buf: buffer = buffer {
             p: 0 as *mut u8,
             len: 0,
@@ -4249,12 +4249,12 @@ unsafe extern "C" fn sshfs_chown(
         }
     }
     if sshfs.idmap == IDMAP_FILE as libc::c_int {
-        if id_map::translate_id(&mut uid, "ruid", new_sshfs.nomap) == -(1 as libc::c_int) {
+        if id_map::translate_id(&mut uid, "ruid", global_settings.nomap) == -(1 as libc::c_int) {
             return -(1 as libc::c_int);
         }
     }
     if sshfs.idmap == IDMAP_FILE as libc::c_int {
-        if id_map::translate_id(&mut gid, "rgid", new_sshfs.nomap) == -(1 as libc::c_int) {
+        if id_map::translate_id(&mut gid, "rgid", global_settings.nomap) == -(1 as libc::c_int) {
             return -(1 as libc::c_int);
         }
     }
@@ -4373,10 +4373,10 @@ unsafe extern "C" fn sshfs_open_common(
     };
     let mut type_0: u8 = 0;
     let mut wrctr: u64 = 0 as libc::c_int as u64;
-    if new_sshfs.dir_cache {
+    if global_settings.dir_cache {
         wrctr = cache_get_write_ctr();
     }
-    if new_sshfs.direct_io {
+    if global_settings.direct_io {
         (*fi).set_direct_io(1 as libc::c_int as libc::c_uint);
     }
     if (*fi).flags & 0o3 as libc::c_int == 0 as libc::c_int {
@@ -4426,7 +4426,7 @@ unsafe extern "C" fn sshfs_open_common(
     (*sf).next_pos = 0 as libc::c_int as off_t;
     pthread_mutex_lock(&mut sshfs.lock);
     (*sf).modifver = sshfs.modifver as libc::c_int;
-    if new_sshfs.max_conns > 1 {
+    if global_settings.max_conns > 1 {
         ce = g_hash_table_lookup(sshfs.conntab, path as gconstpointer)
             as *mut conntab_entry;
         if ce.is_null() {
@@ -4487,7 +4487,7 @@ unsafe extern "C" fn sshfs_open_common(
     );
     buf_clear(&mut buf);
     buf_add_path(&mut buf, path);
-    type_0 = (if new_sshfs.follow_symlinks {
+    type_0 = (if global_settings.follow_symlinks {
         17 as libc::c_int
     } else {
         7 as libc::c_int
@@ -4522,16 +4522,16 @@ unsafe extern "C" fn sshfs_open_common(
         err = err2;
     }
     if err == 0 {
-        if new_sshfs.dir_cache {
+        if global_settings.dir_cache {
             cache_add_attr(path, &mut stbuf, wrctr);
         }
         buf_finish(&mut (*sf).handle);
         (*fi).fh = sf as libc::c_ulong;
     } else {
-        if new_sshfs.dir_cache  {
+        if global_settings.dir_cache  {
             cache_invalidate(path);
         }
-        if new_sshfs.max_conns > 1 {
+        if global_settings.max_conns > 1 {
             pthread_mutex_lock(&mut sshfs.lock);
             let ref mut fresh38 = (*(*sf).conn).file_count;
             *fresh38 -= 1;
@@ -4568,7 +4568,7 @@ unsafe extern "C" fn sshfs_flush(
     if sshfs_file_is_conn(sf) == 0 {
         return -(5 as libc::c_int);
     }
-    if new_sshfs.sync_write {
+    if global_settings.sync_write {
         return 0 as libc::c_int;
     }
     pthread_mutex_lock(&mut sshfs.lock);
@@ -4637,7 +4637,7 @@ unsafe extern "C" fn sshfs_release(
     }
     buf_free(handle);
     chunk_put_locked((*sf).readahead);
-    if new_sshfs.max_conns > 1 {
+    if global_settings.max_conns > 1 {
         pthread_mutex_lock(&mut sshfs.lock);
         let ref mut fresh40 = (*(*sf).conn).file_count;
         *fresh40 -= 1;
@@ -4745,10 +4745,10 @@ unsafe extern "C" fn sshfs_send_read(
             iov_len: 0,
         }; 1];
         let mut rreq: *mut read_req = 0 as *mut read_req;
-        let mut bsize: size_t = if size < new_sshfs.max_read as libc::c_ulong {
+        let mut bsize: size_t = if size < global_settings.max_read as libc::c_ulong {
             size
         } else {
-            new_sshfs.max_read as libc::c_ulong
+            global_settings.max_read as libc::c_ulong
         };
         rreq = ({
             let mut __n: gsize = 1 as libc::c_int as gsize;
@@ -4980,7 +4980,7 @@ unsafe extern "C" fn sshfs_read(
     if sshfs_file_is_conn(sf) == 0 {
         return -(5 as libc::c_int);
     }
-    if new_sshfs.sync_read {
+    if global_settings.sync_read {
         return sshfs_sync_read(sf, rbuf, size, offset)
     } else {
         return sshfs_async_read(sf, rbuf, size, offset)
@@ -5025,10 +5025,10 @@ unsafe extern "C" fn sshfs_async_write(
             iov_base: 0 as *mut libc::c_void,
             iov_len: 0,
         }; 2];
-        let mut bsize: size_t = if size < new_sshfs.max_write as libc::c_ulong {
+        let mut bsize: size_t = if size < global_settings.max_write as libc::c_ulong {
             size
         } else {
-            new_sshfs.max_write as libc::c_ulong
+            global_settings.max_write as libc::c_ulong
         };
         buf_init(&mut buf, 0 as libc::c_int as size_t);
         buf_add_buf(&mut buf, handle);
@@ -5121,10 +5121,10 @@ unsafe extern "C" fn sshfs_sync_write(
             iov_base: 0 as *mut libc::c_void,
             iov_len: 0,
         }; 2];
-        let mut bsize: size_t = if size < new_sshfs.max_write as libc::c_ulong {
+        let mut bsize: size_t = if size < global_settings.max_write as libc::c_ulong {
             size
         } else {
-            new_sshfs.max_write as libc::c_ulong
+            global_settings.max_write as libc::c_ulong
         };
         buf_init(&mut buf, 0 as libc::c_int as size_t);
         buf_add_buf(&mut buf, handle);
@@ -5172,7 +5172,7 @@ unsafe extern "C" fn sshfs_write(
         return -(5 as libc::c_int);
     }
     sshfs_inc_modifver();
-    if new_sshfs.sync_write && (*sf).write_error == 0 {
+    if global_settings.sync_write && (*sf).write_error == 0 {
         err = sshfs_async_write(sf, wbuf, size, offset);
     } else {
         err = sshfs_sync_write(sf, wbuf, size, offset);
@@ -5318,7 +5318,7 @@ unsafe extern "C" fn sshfs_getattr(
         buf_add_path(&mut buf, path);
         err = sftp_request(
             get_conn(sf, path),
-            (if new_sshfs.follow_symlinks {
+            (if global_settings.follow_symlinks {
                 17 as libc::c_int
             } else {
                 7 as libc::c_int
@@ -5356,8 +5356,8 @@ unsafe extern "C" fn sshfs_truncate_zero(mut path: *const libc::c_char) -> libc:
     return err;
 }
 unsafe extern "C" fn calc_buf_size(mut size: off_t, mut offset: off_t) -> size_t {
-    return (if (offset + new_sshfs.max_read as libc::c_long) < size {
-        new_sshfs.max_read as libc::c_long
+    return (if (offset + global_settings.max_read as libc::c_long) < size {
+        global_settings.max_read as libc::c_long
     } else {
         size - offset
     }) as size_t;
@@ -5936,7 +5936,7 @@ unsafe extern "C" fn read_password() -> libc::c_int {
 
 fn set_ssh_command_rust(cmd: &str) {
     let existing = unsafe {
-        new_sshfs.ssh_args.clone()
+        global_settings.ssh_args.clone()
     };
 
     let mut new_args = Vec::new();
@@ -5948,19 +5948,19 @@ fn set_ssh_command_rust(cmd: &str) {
     new_args.extend(existing.into_iter());
 
     unsafe {
-        new_sshfs.ssh_args = new_args;
+        global_settings.ssh_args = new_args;
     }
 }
 
 unsafe fn find_base_path_rust() {
 
     //TODO handle IPv6 parsing too, the way that find_base_path does it
-    let host = new_sshfs.host.as_ref().unwrap().clone();
+    let host = global_settings.host.as_ref().unwrap().clone();
     let colon_idx = host.find(":").unwrap();
     let (first, rest) = host.split_at(colon_idx);
     let (_, base_path) = rest.split_at(1); //Remove ':'
-    new_sshfs.host = Some(first.to_string());
-    new_sshfs.base_path = Some(base_path.to_string());
+    global_settings.host = Some(first.to_string());
+    global_settings.base_path = Some(base_path.to_string());
 }
 
 
@@ -6166,7 +6166,7 @@ unsafe fn main_0(
         ssh_add_arg_rust(arg);
     }
 
-    set_sshfs_from_options(&mut sshfs, &mut new_sshfs, &matches, &option_matches);
+    set_sshfs_from_options(&mut sshfs, &mut global_settings, &matches, &option_matches);
 
 
     // Handle ssh args
@@ -6208,19 +6208,19 @@ unsafe fn main_0(
     {
         exit(1);
     }
-    if new_sshfs.host.is_none() {
+    if global_settings.host.is_none() {
         eprintln!("missing host");
         eprintln!("see `{} -h' for usage", "sshfs");
         exit(1);
     } else {
-        if (new_sshfs.mountpoint).is_none() {
+        if (global_settings.mountpoint).is_none() {
             eprintln!("error: no mountpoint specified");
             eprintln!("see {} -h for usage", "sshfs"); //TODO make this be canonical name of
                                                        //binary
             exit(1);
         }
     }
-    match new_sshfs.idmap {
+    match global_settings.idmap {
         IdMap::User => {
             sshfs.detect_uid = 1 as libc::c_int;
 
@@ -6231,57 +6231,57 @@ unsafe fn main_0(
             sshfs.r_uid_map = 0 as *mut GHashTable;
             sshfs.r_gid_map = 0 as *mut GHashTable;
 
-            id_map::handle_id_maps(new_sshfs.uidfile.as_ref(), new_sshfs.gidfile.as_ref());
+            id_map::handle_id_maps(global_settings.uidfile.as_ref(), global_settings.gidfile.as_ref());
         }
         IdMap::None => (),
     }
 
     free(sshfs.uid_file as *mut libc::c_void);
     free(sshfs.gid_file as *mut libc::c_void);
-    if new_sshfs.debug {
+    if global_settings.debug {
         eprintln!("SSHFS version {}", SSHFS_VERSION);
     }
-    if new_sshfs.passive {
-        new_sshfs.foreground = true;
+    if global_settings.passive {
+        global_settings.foreground = true;
     }
-    if new_sshfs.passive && new_sshfs.password_stdin {
+    if global_settings.passive && global_settings.password_stdin {
         eprintln!("the password_stdin and passive options cannot both be specified");
         exit(1);
     }
-    if new_sshfs.password_stdin {
+    if global_settings.password_stdin {
         res = read_password();
         if res == -1  {
             exit(1);
         }
     }
-    if new_sshfs.debug {
-        new_sshfs.foreground = true;
+    if global_settings.debug {
+        global_settings.foreground = true;
     }
     if sshfs.buflimit_workaround != 0 {
         sshfs.max_outstanding_len = 8388608 as libc::c_int as libc::c_uint;
     } else {
         sshfs.max_outstanding_len = !(0 as libc::c_int) as libc::c_uint;
     }
-    if new_sshfs.max_conns > 1 {
+    if global_settings.max_conns > 1 {
         if sshfs.buflimit_workaround != 0 {
             eprintln!("buflimit workaround is not supported with parallel connections");
             exit(1);
         }
-        if new_sshfs.password_stdin {
+        if global_settings.password_stdin {
             eprintln!("password_stdin option cannot be specified with parallel connections");
             exit(1 as libc::c_int);
         }
-        if new_sshfs.passive {
+        if global_settings.passive {
             eprintln!("passive option cannot be specified with parallel connections");
             exit(1);
         }
-    } else if new_sshfs.max_conns <= 0 {
+    } else if global_settings.max_conns <= 0 {
         eprintln!("value of max_conns option must be at least 1");
         exit(1);
     }
     sshfs
         .conns = ({
-        let mut __n: gsize = new_sshfs.max_conns as gsize;
+        let mut __n: gsize = global_settings.max_conns as gsize;
         let mut __s: gsize = ::std::mem::size_of::<conn>() as libc::c_ulong;
         let mut __p: gpointer = 0 as *mut libc::c_void;
         if __s == 1 as libc::c_int as libc::c_ulong {
@@ -6301,25 +6301,25 @@ unsafe fn main_0(
         __p
     }) as *mut conn;
     let mut i = 0;
-    while i < new_sshfs.max_conns {
+    while i < global_settings.max_conns {
         (*(sshfs.conns).offset(i as isize)).rfd = -(1 as libc::c_int);
         (*(sshfs.conns).offset(i as isize)).wfd = -(1 as libc::c_int);
         i += 1;
     }
     find_base_path_rust();
-    let host_cstring = CString::new(new_sshfs.host.as_ref().unwrap().clone().into_bytes()).unwrap();
-    let base_path_cstring = CString::new(new_sshfs.base_path.as_ref().unwrap().clone().into_bytes()).unwrap();
+    let host_cstring = CString::new(global_settings.host.as_ref().unwrap().clone().into_bytes()).unwrap();
+    let base_path_cstring = CString::new(global_settings.base_path.as_ref().unwrap().clone().into_bytes()).unwrap();
 
     sshfs.base_path = base_path_cstring.as_ptr() as *mut i8;
 
-    if let Some(ssh_command) = &new_sshfs.ssh_command {
+    if let Some(ssh_command) = &global_settings.ssh_command {
         set_ssh_command_rust(&ssh_command);
     }
-    ssh_add_arg_rust(&format!("-{}", new_sshfs.ssh_ver));
+    ssh_add_arg_rust(&format!("-{}", global_settings.ssh_ver));
 
-    ssh_add_arg_rust(new_sshfs.host.as_ref().unwrap());
+    ssh_add_arg_rust(global_settings.host.as_ref().unwrap());
 
-    let mut sftp_server = if new_sshfs.ssh_ver == 1 {
+    let mut sftp_server = if global_settings.ssh_ver == 1 {
         "/usr/lib/sftp-server"
     } else {
         "sftp"
@@ -6331,7 +6331,7 @@ unsafe fn main_0(
         }
     }
 
-    if new_sshfs.ssh_ver != 1 && !sftp_server.contains("/") {
+    if global_settings.ssh_ver != 1 && !sftp_server.contains("/") {
         ssh_add_arg_rust("-s");
     }
     ssh_add_arg_rust(sftp_server);
@@ -6345,7 +6345,7 @@ unsafe fn main_0(
     add_comma_escaped_hostname(args, host_cstring.as_ptr());
 
 
-    if new_sshfs.dir_cache {
+    if global_settings.dir_cache {
         sshfs.op = cache_wrap(&mut sshfs_oper);
     } else {
         sshfs.op = &mut sshfs_oper;
@@ -6365,7 +6365,7 @@ unsafe fn main_0(
         fuse_destroy(fuse);
         exit(1 as libc::c_int);
     }
-    let mp: CString = match new_sshfs.mountpoint {
+    let mp: CString = match global_settings.mountpoint {
         Some(ref item) => {
             let vec = item.clone().into_os_string().into_string().unwrap().into_bytes();
             CString::new(vec).unwrap()
@@ -6385,13 +6385,13 @@ unsafe fn main_0(
                 as *const libc::c_char,
         );
     }
-    res = ssh::ssh_connect(new_sshfs.max_conns, new_sshfs.no_check_root, new_sshfs.delay_connect);
+    res = ssh::ssh_connect(global_settings.max_conns, global_settings.no_check_root, global_settings.delay_connect);
     if res == -(1 as libc::c_int) {
         fuse_unmount(fuse);
         fuse_destroy(fuse);
         exit(1 as libc::c_int);
     }
-    res = fuse_daemonize(if new_sshfs.foreground { 1 } else { 0 });
+    res = fuse_daemonize(if global_settings.foreground { 1 } else { 0 });
     if res == -(1 as libc::c_int) {
         fuse_unmount(fuse);
         fuse_destroy(fuse);
@@ -6411,7 +6411,7 @@ unsafe fn main_0(
     fuse_unmount(fuse);
     fuse_destroy(fuse);
 
-    if new_sshfs.debug {
+    if global_settings.debug {
         let avg_rtt = if counters.num_sent == 0 {
             0
         } else {

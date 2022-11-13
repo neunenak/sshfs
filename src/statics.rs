@@ -36,7 +36,7 @@ pub struct NewSettings {
     pub max_conns: u32,
 }
 
-pub static mut new_sshfs: NewSettings = NewSettings {
+pub static mut global_settings: NewSettings = NewSettings {
     mountpoint: None,
     host: None,
     base_path: None,
