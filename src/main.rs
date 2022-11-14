@@ -1051,9 +1051,6 @@ pub struct conntab_entry {
 #[repr(C)]
 pub struct sshfs {
     pub directport: *mut libc::c_char,
-    pub ssh_command: *mut libc::c_char,
-    pub sftp_server: *mut libc::c_char,
-    pub ssh_args: fuse_args,
     pub workarounds: *mut libc::c_char,
     pub rename_workaround: libc::c_int,
     pub renamexdev_workaround: libc::c_int,
@@ -1154,13 +1151,6 @@ unsafe extern "C" fn __bswap_32(mut __bsx: u32) -> u32 {
 
 static mut sshfs: sshfs = sshfs {
     directport: 0 as *const libc::c_char as *mut libc::c_char,
-    ssh_command: 0 as *const libc::c_char as *mut libc::c_char,
-    sftp_server: 0 as *const libc::c_char as *mut libc::c_char,
-    ssh_args: fuse_args {
-        argc: 0,
-        argv: 0 as *const *mut libc::c_char as *mut *mut libc::c_char,
-        allocated: 0,
-    },
     workarounds: 0 as *const libc::c_char as *mut libc::c_char,
     rename_workaround: 0,
     renamexdev_workaround: 0,
