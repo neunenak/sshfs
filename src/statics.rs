@@ -36,6 +36,7 @@ pub struct NewSettings {
     pub sync_readdir: bool,
     pub max_conns: u32,
     pub blksize: u32,
+    pub detect_uid: bool,
 }
 
 pub static mut global_settings: NewSettings = NewSettings {
@@ -70,6 +71,7 @@ pub static mut global_settings: NewSettings = NewSettings {
     sync_readdir: false,
     max_conns: 1,
     blksize: 0,
+    detect_uid: false,
 };
 
 #[derive(Default, Clone)]

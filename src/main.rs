@@ -3105,9 +3105,9 @@ unsafe extern "C" fn start_processing_thread(mut conn: *mut conn) -> libc::c_int
             return -(5 as libc::c_int);
         }
     }
-    if sshfs.detect_uid != 0 {
+    if global_settings.detect_uid {
         sftp_detect_uid(conn);
-        sshfs.detect_uid = 0 as libc::c_int;
+        global_settings.detect_uid = false;
     }
     sigemptyset(&mut newset);
     sigaddset(&mut newset, 15 as libc::c_int);
@@ -6239,8 +6239,7 @@ unsafe fn main_0(
     }
     match global_settings.idmap {
         IdMap::User => {
-            sshfs.detect_uid = 1 as libc::c_int;
-
+            global_settings.detect_uid = true;
         },
         IdMap::File => {
             id_map::handle_id_maps(global_settings.uidfile.as_ref(), global_settings.gidfile.as_ref());
