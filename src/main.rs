@@ -983,7 +983,6 @@ pub struct list_head {
     pub next: *mut list_head,
 }
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct Request {
     pub want_reply: libc::c_uint,
     pub ready: sem_t,
