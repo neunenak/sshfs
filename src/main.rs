@@ -933,7 +933,7 @@ pub type GHRFunc = Option::<
 >;
 
 #[derive(Default)]
-pub struct conn {
+pub struct Connection {
     pub lock_write: Mutex<()>,
     pub processing_thread_started: libc::c_int,
     pub rfd: libc::c_int,
@@ -955,7 +955,7 @@ pub struct buffer {
 #[repr(C)]
 pub struct dir_handle {
     pub buf: buffer,
-    pub conn: *mut conn,
+    pub conn: *mut Connection,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -977,7 +977,7 @@ pub struct Request {
     pub end_func: request_func,
     pub len: size_t,
     pub list: list_head,
-    pub conn: *mut conn,
+    pub conn: *mut Connection,
 }
 pub type request_func = Option::<unsafe extern "C" fn(*mut Request) -> ()>;
 pub struct sshfs_io {
@@ -1010,7 +1010,7 @@ pub struct sshfs_file {
     pub readahead: *mut read_chunk,
     pub next_pos: off_t,
     pub is_seq: libc::c_int,
-    pub conn: *mut conn,
+    pub conn: *mut Connection,
     pub connver: libc::c_int,
     pub modifver: libc::c_int,
 }
@@ -1020,7 +1020,7 @@ pub struct sshfs_file {
 #[repr(C)]
 pub struct conntab_entry {
     pub refcount: libc::c_uint,
-    pub conn: *mut conn,
+    pub conn: *mut Connection,
 }
 
 #[derive(Copy, Clone)]
@@ -1072,7 +1072,7 @@ pub struct sshfs {
     pub lock: pthread_mutex_t,
     pub randseed: libc::c_uint,
     pub max_conns: libc::c_int,
-    pub conns: *mut conn,
+    pub conns: *mut Connection,
     pub ptyfd: libc::c_int,
     pub ptypassivefd: libc::c_int,
     pub connvers: libc::c_int,
@@ -1186,7 +1186,7 @@ static mut sshfs: sshfs = sshfs {
     },
     randseed: 0,
     max_conns: 0,
-    conns: 0 as *const conn as *mut conn,
+    conns: 0 as *const Connection as *mut Connection,
     ptyfd: 0,
     ptypassivefd: 0,
     connvers: 0,
@@ -1907,7 +1907,7 @@ unsafe fn ssh_add_arg_rust(arg: &str) {
     global_settings.ssh_args.push(arg.to_string());
 }
 
-unsafe fn pty_expect_loop(mut conn: *mut conn) -> libc::c_int {
+unsafe fn pty_expect_loop(mut conn: *mut Connection) -> libc::c_int {
     let mut res: libc::c_int = 0;
     let mut buf: [libc::c_char; 256] = [0; 256];
     let mut passwd_str: *const libc::c_char = b"assword:\0" as *const u8
@@ -1986,11 +1986,11 @@ unsafe fn pty_expect_loop(mut conn: *mut conn) -> libc::c_int {
 unsafe extern "C" fn get_conn(
     mut sf: *const sshfs_file,
     mut path: *const libc::c_char,
-) -> *mut conn {
+) -> *mut Connection {
     let mut ce: *mut conntab_entry = 0 as *mut conntab_entry;
 
     if global_settings.max_conns == 1 {
-        return &mut global_connections[0] as *mut conn;
+        return &mut global_connections[0] as *mut Connection;
     }
     if !sf.is_null() {
         return (*sf).conn;
@@ -2000,7 +2000,7 @@ unsafe extern "C" fn get_conn(
         ce = g_hash_table_lookup(sshfs.conntab, path as gconstpointer)
             as *mut conntab_entry;
         if !ce.is_null() {
-            let mut conn: *mut conn = (*ce).conn;
+            let mut conn: *mut Connection = (*ce).conn;
             return conn;
         }
     }
@@ -2034,7 +2034,7 @@ unsafe extern "C" fn get_conn(
         }
         i += 1;
     }
-    return &mut global_connections[best_index] as *mut conn;
+    return &mut global_connections[best_index] as *mut Connection;
 }
 
 unsafe extern "C" fn pty_master(mut name: *mut *mut libc::c_char) -> libc::c_int {
@@ -2072,7 +2072,7 @@ unsafe extern "C" fn replace_arg(
         abort();
     }
 }
-unsafe fn start_ssh(mut conn: *mut conn) -> libc::c_int {
+unsafe fn start_ssh(mut conn: *mut Connection) -> libc::c_int {
     let mut ptyname: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut sockpair: [libc::c_int; 2] = [0; 2];
     let mut pid: libc::c_int = 0;
@@ -2176,13 +2176,13 @@ unsafe fn start_ssh(mut conn: *mut conn) -> libc::c_int {
     close(sockpair[1 as libc::c_int as usize]);
     return 0 as libc::c_int;
 }
-unsafe extern "C" fn connect_passive(mut conn: *mut conn) -> libc::c_int {
+unsafe extern "C" fn connect_passive(mut conn: *mut Connection) -> libc::c_int {
     (*conn).rfd = 0 as libc::c_int;
     (*conn).wfd = 1 as libc::c_int;
     return 0 as libc::c_int;
 }
 unsafe fn connect_to(
-    mut conn: *mut conn,
+    mut conn: *mut Connection,
     host: &str,
     mut port: *const libc::c_char,
 ) -> libc::c_int {
@@ -2259,7 +2259,7 @@ unsafe fn connect_to(
     return 0 as libc::c_int;
 }
 unsafe extern "C" fn do_write(
-    mut conn: *mut conn,
+    mut conn: *mut Connection,
     mut iov: *mut iovec,
     mut count: size_t,
 ) -> libc::c_int {
@@ -2322,7 +2322,7 @@ unsafe extern "C" fn iov_length(
     return ret;
 }
 unsafe extern "C" fn sftp_send_iov(
-    mut conn: *mut conn,
+    mut conn: *mut Connection,
     mut type_0: u8,
     mut id: u32,
     mut iov: *mut iovec,
@@ -2380,7 +2380,7 @@ unsafe extern "C" fn sftp_send_iov(
     buf_free(&mut buf);
     return res;
 }
-unsafe extern "C" fn do_read(mut conn: *mut conn, mut buf: *mut buffer) -> libc::c_int {
+unsafe extern "C" fn do_read(mut conn: *mut Connection, mut buf: *mut buffer) -> libc::c_int {
     let mut res: libc::c_int = 0;
     let mut p: *mut u8 = (*buf).p;
     let mut size: size_t = (*buf).size;
@@ -2402,7 +2402,7 @@ unsafe extern "C" fn do_read(mut conn: *mut conn, mut buf: *mut buffer) -> libc:
     return 0 as libc::c_int;
 }
 unsafe extern "C" fn sftp_read(
-    mut conn: *mut conn,
+    mut conn: *mut Connection,
     mut type_0: *mut u8,
     mut buf: *mut buffer,
 ) -> libc::c_int {
@@ -2478,7 +2478,7 @@ unsafe extern "C" fn clean_req(
     mut req: *mut Request,
     mut user_data: gpointer,
 ) -> libc::c_int {
-    let mut conn: *mut conn = user_data as *mut conn;
+    let mut conn= user_data as *mut Connection;
     if (*req).conn != conn {
         return 0 as libc::c_int;
     }
@@ -2490,7 +2490,7 @@ unsafe extern "C" fn clean_req(
     }
     return (0 as libc::c_int == 0) as libc::c_int;
 }
-unsafe extern "C" fn process_one_request(mut conn: *mut conn) -> libc::c_int {
+unsafe extern "C" fn process_one_request(mut conn: *mut Connection) -> libc::c_int {
     let mut res: libc::c_int = 0;
     let mut buf: buffer = buffer {
         p: 0 as *mut u8,
@@ -2573,7 +2573,7 @@ unsafe extern "C" fn process_one_request(mut conn: *mut conn) -> libc::c_int {
     }
     return 0 as libc::c_int;
 }
-unsafe extern "C" fn close_conn(mut conn: *mut conn) {
+unsafe extern "C" fn close_conn(mut conn: *mut Connection) {
     close((*conn).rfd);
     if (*conn).rfd != (*conn).wfd {
         close((*conn).wfd);
@@ -2592,7 +2592,7 @@ unsafe extern "C" fn close_conn(mut conn: *mut conn) {
 unsafe extern "C" fn process_requests(
     mut data_: *mut libc::c_void,
 ) -> *mut libc::c_void {
-    let mut conn: *mut conn = data_ as *mut conn;
+    let mut conn = data_ as *mut Connection;
     while !(process_one_request(conn) == -(1 as libc::c_int)) {}
     {
         let _lock = global_lock.lock().unwrap();
@@ -2634,7 +2634,7 @@ unsafe extern "C" fn process_requests(
     return 0 as *mut libc::c_void;
 }
 unsafe extern "C" fn sftp_init_reply_ok(
-    mut conn: *mut conn,
+    mut conn: *mut Connection,
     mut buf: *mut buffer,
     mut version: *mut u32,
 ) -> libc::c_int {
@@ -2735,7 +2735,7 @@ unsafe extern "C" fn sftp_init_reply_ok(
     return 0 as libc::c_int;
 }
 unsafe extern "C" fn sftp_find_init_reply(
-    mut conn: *mut conn,
+    mut conn: *mut Connection,
     mut version: *mut u32,
 ) -> libc::c_int {
     let mut res: libc::c_int = 0;
@@ -2776,7 +2776,7 @@ unsafe extern "C" fn sftp_find_init_reply(
     buf_free(&mut buf);
     return res;
 }
-unsafe extern "C" fn sftp_init(mut conn: *mut conn) -> libc::c_int {
+unsafe extern "C" fn sftp_init(mut conn: *mut Connection) -> libc::c_int {
     let mut res: libc::c_int = -(1 as libc::c_int);
     let mut version: u32 = 0 as libc::c_int as u32;
     let mut buf: buffer = buffer {
@@ -2825,7 +2825,7 @@ unsafe extern "C" fn sftp_error_to_errno(mut error: u32) -> libc::c_int {
         _ => return 5 as libc::c_int,
     };
 }
-unsafe extern "C" fn sftp_detect_uid(mut conn: *mut conn) {
+unsafe extern "C" fn sftp_detect_uid(mut conn: *mut Connection) {
     let mut flags: libc::c_int = 0;
     let mut id: u32 = sftp_get_id();
     let mut replid: u32 = 0;
@@ -2918,7 +2918,7 @@ unsafe extern "C" fn sftp_detect_uid(mut conn: *mut conn) {
     buf_free(&mut buf);
 }
 unsafe extern "C" fn sftp_check_root(
-    mut conn: *mut conn,
+    mut conn: *mut Connection,
     mut base_path: *const libc::c_char,
 ) -> libc::c_int {
     let mut err2: libc::c_int = 0;
@@ -3023,7 +3023,7 @@ unsafe extern "C" fn sftp_check_root(
     buf_free(&mut buf);
     return err;
 }
-unsafe fn connect_remote(mut conn: *mut conn) -> libc::c_int {
+unsafe fn connect_remote(mut conn: *mut Connection) -> libc::c_int {
     let mut err: libc::c_int = 0;
     if global_settings.passive {
         err = connect_passive(conn);
@@ -3044,7 +3044,7 @@ unsafe fn connect_remote(mut conn: *mut conn) -> libc::c_int {
     }
     return err;
 }
-unsafe fn start_processing_thread(mut conn: *mut conn) -> libc::c_int {
+unsafe fn start_processing_thread(mut conn: *mut Connection) -> libc::c_int {
     let mut oldset: sigset_t = sigset_t { __val: [0; 16] };
     let mut newset: sigset_t = sigset_t { __val: [0; 16] };
     if (*conn).processing_thread_started != 0 {
@@ -3185,7 +3185,7 @@ unsafe extern "C" fn sftp_request_wait(
     return err;
 }
 unsafe extern "C" fn sftp_request_send(
-    mut conn: *mut conn,
+    mut conn: *mut Connection,
     mut type_0: u8,
     mut iov: *mut iovec,
     mut count: size_t,
@@ -3292,7 +3292,7 @@ unsafe extern "C" fn sftp_request_send(
     return err;
 }
 unsafe extern "C" fn sftp_request_iov(
-    mut conn: *mut conn,
+    mut conn: *mut Connection,
     mut type_0: u8,
     mut iov: *mut iovec,
     mut count: size_t,
@@ -3318,7 +3318,7 @@ unsafe extern "C" fn sftp_request_iov(
     return sftp_request_wait(req, type_0, expect_type, outbuf);
 }
 unsafe extern "C" fn sftp_request(
-    mut conn: *mut conn,
+    mut conn: *mut Connection,
     mut type_0: u8,
     mut buf: *const buffer,
     mut expect_type: u8,
@@ -3547,7 +3547,7 @@ unsafe extern "C" fn sshfs_readlink(
     return err;
 }
 unsafe extern "C" fn sftp_readdir_send(
-    mut conn: *mut conn,
+    mut conn: *mut Connection,
     mut req: *mut *mut Request,
     mut handle: *mut buffer,
 ) -> libc::c_int {
@@ -3581,7 +3581,7 @@ unsafe extern "C" fn sshfs_req_pending(mut req: *mut Request) -> libc::c_int {
     };
 }
 unsafe extern "C" fn sftp_readdir_async(
-    mut conn: *mut conn,
+    mut conn: *mut Connection,
     mut handle: *mut buffer,
     mut buf: *mut libc::c_void,
     mut offset: off_t,
@@ -3687,7 +3687,7 @@ unsafe extern "C" fn sftp_readdir_async(
     return err;
 }
 unsafe extern "C" fn sftp_readdir_sync(
-    mut conn: *mut conn,
+    mut conn: *mut Connection,
     mut handle: *mut buffer,
     mut buf: *mut libc::c_void,
     mut offset: off_t,
@@ -3739,7 +3739,7 @@ unsafe extern "C" fn sshfs_opendir(
     mut fi: *mut fuse_file_info,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
-    let mut conn: *mut conn = 0 as *mut conn;
+    let mut conn = 0 as *mut Connection;
     let mut buf: buffer = buffer {
         p: 0 as *mut u8,
         len: 0,
@@ -3891,7 +3891,7 @@ unsafe extern "C" fn sshfs_mknod(
     mut rdev: dev_t,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
-    let mut conn: *mut conn = 0 as *mut conn;
+    let mut conn = 0 as *mut Connection;
     let mut buf: buffer = buffer {
         p: 0 as *mut u8,
         len: 0,
@@ -6226,7 +6226,7 @@ unsafe fn main_0(
     }
 
     for _ in 0..global_settings.max_conns {
-        let mut connection = conn::default();
+        let mut connection = Connection::default();
         connection.rfd = -1;
         connection.wfd = -1;
         global_connections.push(connection);

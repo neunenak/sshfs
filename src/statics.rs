@@ -1,7 +1,7 @@
 use crate::options::{IdMap, NoMap};
 use crate::Request;
 use crate::IDMAP_DEFAULT;
-use crate::{conn, fuse_operations};
+use crate::{Connection, fuse_operations};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Condvar, Mutex};
@@ -12,7 +12,7 @@ lazy_static::lazy_static! {
 }
 */
 
-pub static mut global_connections: Vec<conn> = Vec::new();
+pub static mut global_connections: Vec<Connection> = Vec::new();
 
 pub static global_lock: Mutex<()> = Mutex::new(());
 
