@@ -1,10 +1,10 @@
 use crate::options::{IdMap, NoMap};
-use crate::IDMAP_DEFAULT;
-use std::path::PathBuf;
-use crate::{conn, fuse_operations};
 use crate::Request;
+use crate::IDMAP_DEFAULT;
+use crate::{conn, fuse_operations};
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::path::PathBuf;
+use std::sync::{Condvar, Mutex};
 
 /*
 lazy_static::lazy_static! {
@@ -13,6 +13,10 @@ lazy_static::lazy_static! {
 */
 
 pub static mut global_connections: Vec<conn> = Vec::new();
+
+pub static global_lock: Mutex<()> = Mutex::new(());
+
+pub static global_cond: Condvar = Condvar::new();
 
 
 #[derive(Debug, Clone)]
@@ -109,4 +113,4 @@ pub static mut counters: Counters = Counters {
     num_connect: 0,
 };
 
-pub static mut sshfs_operations: *mut fuse_operations =  0 as *mut fuse_operations;
+pub static mut sshfs_operations: *mut fuse_operations = 0 as *mut fuse_operations;

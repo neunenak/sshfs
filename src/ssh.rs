@@ -1,9 +1,6 @@
 use crate::global_settings;
 use crate::sshfs;
-use crate::{
-    connect_remote, pthread_cond_init, pthread_condattr_t, pthread_mutex_init, pthread_mutexattr_t,
-    sftp_check_root,
-};
+use crate::{connect_remote, sftp_check_root};
 use libc::{signal, SIGPIPE, SIG_IGN};
 use std::ffi::CString;
 
@@ -15,9 +12,7 @@ pub unsafe fn ssh_connect(max_conns: u32, no_check_root: bool, delay_connect: bo
     }
     if !delay_connect {
         let connection = &mut crate::statics::global_connections[0];
-        if connect_remote(connection)
-            == -(1 as libc::c_int)
-        {
+        if connect_remote(connection) == -(1 as libc::c_int) {
             return -(1 as libc::c_int);
         }
 
@@ -32,10 +27,7 @@ pub unsafe fn ssh_connect(max_conns: u32, no_check_root: bool, delay_connect: bo
         .unwrap();
         let ptr = base_path_cstring.as_ptr();
 
-        if !no_check_root
-            && sftp_check_root(connection, ptr)
-                != 0 as libc::c_int
-        {
+        if !no_check_root && sftp_check_root(connection, ptr) != 0 as libc::c_int {
             return -(1 as libc::c_int);
         }
     }
@@ -44,9 +36,6 @@ pub unsafe fn ssh_connect(max_conns: u32, no_check_root: bool, delay_connect: bo
 
 unsafe fn processing_init(max_conns: u32) -> libc::c_int {
     signal(SIGPIPE, SIG_IGN);
-
-    pthread_mutex_init(&mut sshfs.lock, 0 as *const pthread_mutexattr_t);
-    pthread_cond_init(&mut sshfs.outstanding_cond, 0 as *const pthread_condattr_t);
 
     sshfs.reqtab = crate::g_hash_table_new(None, None);
     if (sshfs.reqtab).is_null() {

@@ -19,9 +19,9 @@ use std::process::exit;
 use clap::ArgMatches;
 use std::path::{PathBuf, Path};
 use options::{IdMap, SshFSOption};
-use std::sync::Mutex;
+use std::sync::{Condvar, Mutex};
 
-use statics::{NewSettings, global_settings, counters, sshfs_operations, global_connections};
+use statics::{global_lock, global_cond, NewSettings, global_settings, counters, sshfs_operations, global_connections};
 
 const IDMAP_DEFAULT: IdMap = if cfg!(target_os = "macos") {
     IdMap::User
@@ -1114,7 +1114,6 @@ pub struct sshfs {
     pub modifver: libc::c_long,
     pub outstanding_len: libc::c_uint,
     pub max_outstanding_len: libc::c_uint,
-    pub outstanding_cond: pthread_cond_t,
     pub password_stdin: libc::c_int,
     pub password: *mut libc::c_char,
     pub ext_posix_rename: libc::c_int,
@@ -1229,21 +1228,6 @@ static mut sshfs: sshfs = sshfs {
     modifver: 0,
     outstanding_len: 0,
     max_outstanding_len: 0,
-    outstanding_cond: pthread_cond_t {
-        __data: __pthread_cond_s {
-            __wseq: __atomic_wide_counter {
-                __value64: 0,
-            },
-            __g1_start: __atomic_wide_counter {
-                __value64: 0,
-            },
-            __g_refs: [0; 2],
-            __g_size: [0; 2],
-            __g1_orig_size: 0,
-            __wrefs: 0,
-            __g_signals: [0; 2],
-        },
-    },
     password_stdin: 0,
     password: 0 as *const libc::c_char as *mut libc::c_char,
     ext_posix_rename: 0,
@@ -2039,15 +2023,13 @@ unsafe extern "C" fn get_conn(
         return (*sf).conn;
     }
     if !path.is_null() {
-        pthread_mutex_lock(&mut sshfs.lock);
+        let _lock = global_lock.lock().unwrap();
         ce = g_hash_table_lookup(sshfs.conntab, path as gconstpointer)
             as *mut conntab_entry;
         if !ce.is_null() {
             let mut conn: *mut conn = (*ce).conn;
-            pthread_mutex_unlock(&mut sshfs.lock);
             return conn;
         }
-        pthread_mutex_unlock(&mut sshfs.lock);
     }
     let mut best_index: usize = 0;
     let mut best_score: u64 = !(0 as libc::c_ulonglong) as u64;
@@ -2514,10 +2496,9 @@ unsafe extern "C" fn chunk_put(mut chunk: *mut read_chunk) {
         }
     }
 }
-unsafe extern "C" fn chunk_put_locked(mut chunk: *mut read_chunk) {
-    pthread_mutex_lock(&mut sshfs.lock);
+unsafe fn chunk_put_locked(mut chunk: *mut read_chunk) {
+    let _lock = global_lock.lock().unwrap();
     chunk_put(chunk);
-    pthread_mutex_unlock(&mut sshfs.lock);
 }
 unsafe extern "C" fn clean_req(
     mut key: *mut libc::c_void,
@@ -2554,27 +2535,24 @@ unsafe extern "C" fn process_one_request(mut conn: *mut conn) -> libc::c_int {
     if buf_get_uint32(&mut buf, &mut id) == -(1 as libc::c_int) {
         return -(1 as libc::c_int);
     }
-    pthread_mutex_lock(&mut sshfs.lock);
-    req = g_hash_table_lookup(sshfs.reqtab, id as gulong as gpointer as gconstpointer)
-        as *mut Request;
-    if req.is_null() {
-        fprintf(
-            stderr,
-            b"request %i not found\n\0" as *const u8 as *const libc::c_char,
-            id,
-        );
-    } else {
-        let mut was_over: libc::c_int = 0;
-        was_over = (sshfs.outstanding_len > sshfs.max_outstanding_len) as libc::c_int;
-        sshfs
-            .outstanding_len = (sshfs.outstanding_len as libc::c_ulong)
-            .wrapping_sub((*req).len) as libc::c_uint as libc::c_uint;
-        if was_over != 0 && sshfs.outstanding_len <= sshfs.max_outstanding_len {
-            pthread_cond_broadcast(&mut sshfs.outstanding_cond);
+    {
+        let _lock = global_lock.lock().unwrap();
+        req = g_hash_table_lookup(sshfs.reqtab, id as gulong as gpointer as gconstpointer)
+            as *mut Request;
+        if req.is_null() {
+            eprintln!("request {} not found", id);
+        } else {
+            let mut was_over: libc::c_int = 0;
+            was_over = (sshfs.outstanding_len > sshfs.max_outstanding_len) as libc::c_int;
+            sshfs
+                .outstanding_len = (sshfs.outstanding_len as libc::c_ulong)
+                .wrapping_sub((*req).len) as libc::c_uint as libc::c_uint;
+            if was_over != 0 && sshfs.outstanding_len <= sshfs.max_outstanding_len {
+                global_cond.notify_all();
+            }
+            g_hash_table_remove(sshfs.reqtab, id as gulong as gpointer as gconstpointer);
         }
-        g_hash_table_remove(sshfs.reqtab, id as gulong as gpointer as gconstpointer);
     }
-    pthread_mutex_unlock(&mut sshfs.lock);
     if !req.is_null() {
         if global_settings.debug {
 
@@ -2612,9 +2590,10 @@ unsafe extern "C" fn process_one_request(mut conn: *mut conn) -> libc::c_int {
         if (*req).want_reply != 0 {
             sem_post(&mut (*req).ready);
         } else {
-            pthread_mutex_lock(&mut sshfs.lock);
-            request_free(req);
-            pthread_mutex_unlock(&mut sshfs.lock);
+            {
+                let _lock = global_lock.lock().unwrap();
+                request_free(req);
+            }
         }
     } else {
         buf_free(&mut buf);
@@ -2642,37 +2621,40 @@ unsafe extern "C" fn process_requests(
 ) -> *mut libc::c_void {
     let mut conn: *mut conn = data_ as *mut conn;
     while !(process_one_request(conn) == -(1 as libc::c_int)) {}
-    pthread_mutex_lock(&mut sshfs.lock);
-    (*conn).processing_thread_started = 0 as libc::c_int;
-    close_conn(conn);
-    g_hash_table_foreach_remove(
-        sshfs.reqtab,
-        ::std::mem::transmute::<
+    {
+        let _lock = global_lock.lock().unwrap();
+
+        (*conn).processing_thread_started = 0 as libc::c_int;
+        close_conn(conn);
+        g_hash_table_foreach_remove(
+            sshfs.reqtab,
+            ::std::mem::transmute::<
             Option::<
-                unsafe extern "C" fn(
-                    *mut libc::c_void,
-                    *mut Request,
-                    gpointer,
-                ) -> libc::c_int,
+            unsafe extern "C" fn(
+                *mut libc::c_void,
+                *mut Request,
+                gpointer,
+            ) -> libc::c_int,
             >,
             GHRFunc,
-        >(
-            Some(
-                clean_req
+            >(
+                Some(
+                    clean_req
                     as unsafe extern "C" fn(
                         *mut libc::c_void,
                         *mut Request,
                         gpointer,
                     ) -> libc::c_int,
+                ),
             ),
-        ),
-        conn as gpointer,
-    );
-    sshfs.connvers += 1;
-    (*conn).connver = sshfs.connvers;
-    sshfs.outstanding_len = 0 as libc::c_int as libc::c_uint;
-    pthread_cond_broadcast(&mut sshfs.outstanding_cond);
-    pthread_mutex_unlock(&mut sshfs.lock);
+            conn as gpointer,
+            );
+        sshfs.connvers += 1;
+        (*conn).connver = sshfs.connvers;
+        sshfs.outstanding_len = 0 as libc::c_int as libc::c_uint;
+        global_cond.notify_all();
+    }
+
     if !global_settings.reconnect {
         kill(getpid(), 15 as libc::c_int);
     }
@@ -3221,9 +3203,10 @@ unsafe extern "C" fn sftp_request_wait(
             }
         }
     }
-    pthread_mutex_lock(&mut sshfs.lock);
-    request_free(req);
-    pthread_mutex_unlock(&mut sshfs.lock);
+    {
+        let _lock = global_lock.lock().unwrap();
+        request_free(req);
+    }
     return err;
 }
 unsafe extern "C" fn sftp_request_send(
@@ -3266,10 +3249,13 @@ unsafe extern "C" fn sftp_request_send(
     *fresh26 = data;
     sem_init(&mut (*req).ready, 0 as libc::c_int, 0 as libc::c_int as libc::c_uint);
     buf_init(&mut (*req).reply, 0 as libc::c_int as size_t);
-    pthread_mutex_lock(&mut sshfs.lock);
+
+    let lock = global_lock.lock().unwrap();
+
     if begin_func.is_some() {
         begin_func.expect("non-null function pointer")(req);
     }
+
     id = sftp_get_id();
     (*req).id = id;
     let ref mut fresh27 = (*req).conn;
@@ -3278,7 +3264,7 @@ unsafe extern "C" fn sftp_request_send(
     *fresh28 += 1;
     err = start_processing_thread(conn);
     if err != 0 {
-        pthread_mutex_unlock(&mut sshfs.lock);
+        std::mem::drop(lock);
     } else {
         (*req)
             .len = (iov_length(iov, count))
@@ -3286,9 +3272,9 @@ unsafe extern "C" fn sftp_request_send(
         sshfs
             .outstanding_len = (sshfs.outstanding_len as libc::c_ulong)
             .wrapping_add((*req).len) as libc::c_uint as libc::c_uint;
-        while sshfs.outstanding_len > sshfs.max_outstanding_len {
-            pthread_cond_wait(&mut sshfs.outstanding_cond, &mut sshfs.lock);
-        }
+
+        let lock = global_cond.wait_while(lock,  |_| sshfs.outstanding_len > sshfs.max_outstanding_len).unwrap();
+
         g_hash_table_insert(sshfs.reqtab, id as gulong as gpointer, req as gpointer);
         if global_settings.debug {
             gettimeofday(&mut (*req).start, 0 as *mut libc::c_void);
@@ -3299,16 +3285,19 @@ unsafe extern "C" fn sftp_request_send(
         if global_settings.debug {
             eprintln!("[{}] {}", id, type_name(type_0));
         }
-        pthread_mutex_unlock(&mut sshfs.lock);
+        std::mem::drop(lock);
         err = -(5 as libc::c_int);
         if sftp_send_iov(conn, type_0, id, iov, count) == -(1 as libc::c_int) {
             let mut rmed: gboolean = 0;
-            pthread_mutex_lock(&mut sshfs.lock);
-            rmed = g_hash_table_remove(
-                sshfs.reqtab,
-                id as gulong as gpointer as gconstpointer,
-            );
-            pthread_mutex_unlock(&mut sshfs.lock);
+
+            {
+                let _lock = global_lock.lock().unwrap();
+                rmed = g_hash_table_remove(
+                    sshfs.reqtab,
+                    id as gulong as gpointer as gconstpointer,
+                );
+            }
+
             if rmed == 0 && want_reply == 0 {
                 return err;
             }
@@ -3671,12 +3660,13 @@ unsafe extern "C" fn sftp_readdir_async(
         outstanding -= 1;
         if done != 0 {
             let mut want_reply: libc::c_int = 0;
-            pthread_mutex_lock(&mut sshfs.lock);
-            if sshfs_req_pending(req) != 0 {
-                (*req).want_reply = 0 as libc::c_int as libc::c_uint;
+            {
+                let _lock = global_lock.lock().unwrap();
+                if sshfs_req_pending(req) != 0 {
+                    (*req).want_reply = 0 as libc::c_int as libc::c_uint;
+                }
+                want_reply = (*req).want_reply as libc::c_int;
             }
-            want_reply = (*req).want_reply as libc::c_int;
-            pthread_mutex_unlock(&mut sshfs.lock);
             if want_reply == 0 {
                 continue;
             }
@@ -3816,12 +3806,16 @@ unsafe extern "C" fn sshfs_opendir(
     );
     if err == 0 {
         buf_finish(&mut (*handle).buf);
-        pthread_mutex_lock(&mut sshfs.lock);
-        let ref mut fresh29 = (*handle).conn;
-        *fresh29 = conn;
-        let ref mut fresh30 = (*(*handle).conn).dir_count;
-        *fresh30 += 1;
-        pthread_mutex_unlock(&mut sshfs.lock);
+
+        {
+            let _lock = global_lock.lock().unwrap();
+
+            let ref mut fresh29 = (*handle).conn;
+            *fresh29 = conn;
+            let ref mut fresh30 = (*(*handle).conn).dir_count;
+            *fresh30 += 1;
+        }
+
         (*fi).fh = handle as libc::c_ulong;
     } else {
         g_free(handle as gpointer);
@@ -3860,7 +3854,7 @@ unsafe extern "C" fn sshfs_readdir(
     return err;
 }
 unsafe extern "C" fn sshfs_releasedir(
-    mut path: *const libc::c_char,
+    mut _path: *const libc::c_char,
     mut fi: *mut fuse_file_info,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
@@ -3873,10 +3867,13 @@ unsafe extern "C" fn sshfs_releasedir(
         0 as libc::c_int as u8,
         0 as *mut buffer,
     );
-    pthread_mutex_lock(&mut sshfs.lock);
-    let ref mut fresh31 = (*(*handle).conn).dir_count;
-    *fresh31 -= 1;
-    pthread_mutex_unlock(&mut sshfs.lock);
+
+    {
+        let _lock = global_lock.lock().unwrap();
+        let ref mut fresh31 = (*(*handle).conn).dir_count;
+        *fresh31 -= 1;
+    }
+
     buf_free(&mut (*handle).buf);
     g_free(handle as gpointer);
     return err;
@@ -4141,18 +4138,19 @@ unsafe extern "C" fn sshfs_rename(
         err = -(18 as libc::c_int);
     }
     if err == 0 && global_settings.max_conns > 1 {
-        pthread_mutex_lock(&mut sshfs.lock);
-        ce = g_hash_table_lookup(sshfs.conntab, from as gconstpointer)
-            as *mut conntab_entry;
-        if !ce.is_null() {
-            g_hash_table_replace(
-                sshfs.conntab,
-                g_strdup(to) as gpointer,
-                ce as gpointer,
-            );
-            g_hash_table_remove(sshfs.conntab, from as gconstpointer);
+        {
+            let _lock = global_lock.lock().unwrap();
+            ce = g_hash_table_lookup(sshfs.conntab, from as gconstpointer)
+                as *mut conntab_entry;
+            if !ce.is_null() {
+                g_hash_table_replace(
+                    sshfs.conntab,
+                    g_strdup(to) as gpointer,
+                    ce as gpointer,
+                );
+                g_hash_table_remove(sshfs.conntab, from as gconstpointer);
+            }
         }
-        pthread_mutex_unlock(&mut sshfs.lock);
     }
     return err;
 }
@@ -4188,9 +4186,10 @@ unsafe extern "C" fn sshfs_link(
 #[inline]
 unsafe extern "C" fn sshfs_file_is_conn(mut sf: *mut sshfs_file) -> libc::c_int {
     let mut ret: libc::c_int = 0;
-    pthread_mutex_lock(&mut sshfs.lock);
+    let _lock = global_lock.lock().unwrap();
+
     ret = ((*sf).connver == (*(*sf).conn).connver) as libc::c_int;
-    pthread_mutex_unlock(&mut sshfs.lock);
+
     return ret;
 }
 #[inline]
@@ -4289,11 +4288,12 @@ unsafe extern "C" fn sshfs_chown(
     buf_free(&mut buf);
     return err;
 }
-unsafe extern "C" fn sshfs_inc_modifver() {
-    pthread_mutex_lock(&mut sshfs.lock);
+
+unsafe fn sshfs_inc_modifver() {
+    let _lock = global_lock.lock().unwrap();
     sshfs.modifver += 1;
-    pthread_mutex_unlock(&mut sshfs.lock);
 }
+
 unsafe extern "C" fn sshfs_utimens(
     mut path: *const libc::c_char,
     mut tv: *const timespec,
@@ -4436,50 +4436,53 @@ unsafe extern "C" fn sshfs_open_common(
     pthread_cond_init(&mut (*sf).write_finished, 0 as *const pthread_condattr_t);
     (*sf).is_seq = 0 as libc::c_int;
     (*sf).next_pos = 0 as libc::c_int as off_t;
-    pthread_mutex_lock(&mut sshfs.lock);
-    (*sf).modifver = sshfs.modifver as libc::c_int;
-    if global_settings.max_conns > 1 {
-        ce = g_hash_table_lookup(sshfs.conntab, path as gconstpointer)
-            as *mut conntab_entry;
-        if ce.is_null() {
-            ce = g_malloc(::std::mem::size_of::<conntab_entry>() as libc::c_ulong)
+
+    {
+        let _lock = global_lock.lock().unwrap();
+        (*sf).modifver = sshfs.modifver as libc::c_int;
+        if global_settings.max_conns > 1 {
+            ce = g_hash_table_lookup(sshfs.conntab, path as gconstpointer)
                 as *mut conntab_entry;
-            (*ce).refcount = 0 as libc::c_int as libc::c_uint;
-            let ref mut fresh33 = (*ce).conn;
-            *fresh33 = get_conn(0 as *const sshfs_file, 0 as *const libc::c_char);
-            g_hash_table_insert(
-                sshfs.conntab,
-                g_strdup(path) as gpointer,
-                ce as gpointer,
-            );
-        }
-        let ref mut fresh34 = (*sf).conn;
-        *fresh34 = (*ce).conn;
-        let ref mut fresh35 = (*ce).refcount;
-        *fresh35 = (*fresh35).wrapping_add(1);
-        let ref mut fresh36 = (*(*sf).conn).file_count;
-        *fresh36 += 1;
-        if (*(*sf).conn).file_count > 0 as libc::c_int {} else {
-            __assert_fail(
-                b"sf->conn->file_count > 0\0" as *const u8 as *const libc::c_char,
-                b"../sshfs.c\0" as *const u8 as *const libc::c_char,
-                2763 as libc::c_int as libc::c_uint,
-                (*::std::mem::transmute::<
-                    &[u8; 69],
-                    &[libc::c_char; 69],
-                >(
-                    b"int sshfs_open_common(const char *, mode_t, struct fuse_file_info *)\0",
-                ))
+            if ce.is_null() {
+                ce = g_malloc(::std::mem::size_of::<conntab_entry>() as libc::c_ulong)
+                    as *mut conntab_entry;
+                (*ce).refcount = 0 as libc::c_int as libc::c_uint;
+                let ref mut fresh33 = (*ce).conn;
+                *fresh33 = get_conn(0 as *const sshfs_file, 0 as *const libc::c_char);
+                g_hash_table_insert(
+                    sshfs.conntab,
+                    g_strdup(path) as gpointer,
+                    ce as gpointer,
+                );
+            }
+            let ref mut fresh34 = (*sf).conn;
+            *fresh34 = (*ce).conn;
+            let ref mut fresh35 = (*ce).refcount;
+            *fresh35 = (*fresh35).wrapping_add(1);
+            let ref mut fresh36 = (*(*sf).conn).file_count;
+            *fresh36 += 1;
+            if (*(*sf).conn).file_count > 0 as libc::c_int {} else {
+                __assert_fail(
+                    b"sf->conn->file_count > 0\0" as *const u8 as *const libc::c_char,
+                    b"../sshfs.c\0" as *const u8 as *const libc::c_char,
+                    2763 as libc::c_int as libc::c_uint,
+                    (*::std::mem::transmute::<
+                     &[u8; 69],
+                     &[libc::c_char; 69],
+                     >(
+                         b"int sshfs_open_common(const char *, mode_t, struct fuse_file_info *)\0",
+                     ))
                     .as_ptr(),
-            );
+                );
+            }
+        } else {
+            let ref mut fresh37 = (*sf).conn;
+            *fresh37 = &mut global_connections[0];
+            ce = 0 as *mut conntab_entry;
         }
-    } else {
-        let ref mut fresh37 = (*sf).conn;
-        *fresh37 = &mut global_connections[0];
-        ce = 0 as *mut conntab_entry;
+        (*sf).connver = (*(*sf).conn).connver;
     }
-    (*sf).connver = (*(*sf).conn).connver;
-    pthread_mutex_unlock(&mut sshfs.lock);
+
     buf_init(&mut buf, 0 as libc::c_int as size_t);
     buf_add_path(&mut buf, path);
     buf_add_uint32(&mut buf, pflags);
@@ -4544,7 +4547,8 @@ unsafe extern "C" fn sshfs_open_common(
             cache_invalidate(path);
         }
         if global_settings.max_conns > 1 {
-            pthread_mutex_lock(&mut sshfs.lock);
+            let _lock = global_lock.lock().unwrap();
+
             let ref mut fresh38 = (*(*sf).conn).file_count;
             *fresh38 -= 1;
             let ref mut fresh39 = (*ce).refcount;
@@ -4553,7 +4557,6 @@ unsafe extern "C" fn sshfs_open_common(
                 g_hash_table_remove(sshfs.conntab, path as gconstpointer);
                 g_free(ce as gpointer);
             }
-            pthread_mutex_unlock(&mut sshfs.lock);
         }
         g_free(sf as gpointer);
     }
@@ -4650,7 +4653,7 @@ unsafe extern "C" fn sshfs_release(
     buf_free(handle);
     chunk_put_locked((*sf).readahead);
     if global_settings.max_conns > 1 {
-        pthread_mutex_lock(&mut sshfs.lock);
+        let _lock = global_lock.lock().unwrap();
         let ref mut fresh40 = (*(*sf).conn).file_count;
         *fresh40 -= 1;
         ce = g_hash_table_lookup(sshfs.conntab, path as gconstpointer)
@@ -4661,7 +4664,6 @@ unsafe extern "C" fn sshfs_release(
             g_hash_table_remove(sshfs.conntab, path as gconstpointer);
             g_free(ce as gpointer);
         }
-        pthread_mutex_unlock(&mut sshfs.lock);
     }
     g_free(sf as gpointer);
     return 0 as libc::c_int;
@@ -4901,13 +4903,15 @@ unsafe extern "C" fn submit_read(
 ) {
     let mut chunk: *mut read_chunk = 0 as *mut read_chunk;
     chunk = sshfs_send_read(sf, size, offset);
-    pthread_mutex_lock(&mut sshfs.lock);
-    (*chunk).modifver = sshfs.modifver;
-    chunk_put(*chunkp);
-    *chunkp = chunk;
-    let ref mut fresh49 = (*chunk).refs;
-    *fresh49 += 1;
-    pthread_mutex_unlock(&mut sshfs.lock);
+
+    {
+        let _lock = global_lock.lock().unwrap();
+        (*chunk).modifver = sshfs.modifver;
+        chunk_put(*chunkp);
+        *chunkp = chunk;
+        let ref mut fresh49 = (*chunk).refs;
+        *fresh49 += 1;
+    }
 }
 unsafe extern "C" fn search_read_chunk(
     mut sf: *mut sshfs_file,
@@ -4934,15 +4938,18 @@ unsafe extern "C" fn sshfs_async_read(
     let mut chunk_prev: *mut read_chunk = 0 as *mut read_chunk;
     let mut origsize: size_t = size;
     let mut curr_is_seq: libc::c_int = 0;
-    pthread_mutex_lock(&mut sshfs.lock);
-    curr_is_seq = (*sf).is_seq;
-    (*sf)
-        .is_seq = ((*sf).next_pos == offset
-        && (*sf).modifver as libc::c_long == sshfs.modifver) as libc::c_int;
-    (*sf).next_pos = (offset as libc::c_ulong).wrapping_add(size) as off_t;
-    (*sf).modifver = sshfs.modifver as libc::c_int;
-    chunk = search_read_chunk(sf, offset);
-    pthread_mutex_unlock(&mut sshfs.lock);
+
+    {
+        let _lock = global_lock.lock().unwrap();
+        curr_is_seq = (*sf).is_seq;
+        (*sf)
+            .is_seq = ((*sf).next_pos == offset
+            && (*sf).modifver as libc::c_long == sshfs.modifver) as libc::c_int;
+        (*sf).next_pos = (offset as libc::c_ulong).wrapping_add(size) as off_t;
+        (*sf).modifver = sshfs.modifver as libc::c_int;
+        chunk = search_read_chunk(sf, offset);
+    }
+
     if !chunk.is_null() && (*chunk).size < size {
         chunk_prev = chunk;
         size = (size as libc::c_ulong).wrapping_sub((*chunk).size) as size_t as size_t;
