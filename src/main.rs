@@ -2568,16 +2568,17 @@ unsafe extern "C" fn process_one_request(mut conn: *mut conn) -> libc::c_int {
     pthread_mutex_unlock(&mut sshfs.lock);
     if !req.is_null() {
         if global_settings.debug {
-            let mut now: timeval = timeval { tv_sec: 0, tv_usec: 0 };
+
+            let now = std::time::SystemTime::now();
+            let cur_time = now.duration_since(std::time::UNIX_EPOCH).unwrap();
+
             let mut difftime: u64 = 0;
             let mut msgsize = (buf.size) + 5;
 
-            gettimeofday(&mut now, 0 as *mut libc::c_void);
-
-            difftime = ((now.tv_sec - (*req).start.tv_sec)
+            difftime = ((cur_time.as_secs() as i64 - (*req).start.tv_sec)
                 * 1000 ) as u64;
             difftime = (difftime as libc::c_long
-                + (now.tv_usec - (*req).start.tv_usec)
+                + (cur_time.subsec_micros() as i64 - (*req).start.tv_usec)
                 / 1000 ) as u64;
 
 
