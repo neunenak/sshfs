@@ -1,6 +1,7 @@
 use crate::options::{IdMap, NoMap};
 use crate::IDMAP_DEFAULT;
 use std::path::PathBuf;
+use crate::fuse_operations;
 
 #[derive(Debug, Clone)]
 pub struct NewSettings {
@@ -93,3 +94,5 @@ pub static mut counters: Counters = Counters {
     total_rtt: 0,
     num_connect: 0,
 };
+
+pub static mut sshfs_operations: *mut fuse_operations =  0 as *mut fuse_operations;

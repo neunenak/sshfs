@@ -20,7 +20,7 @@ use clap::ArgMatches;
 use std::path::{PathBuf, Path};
 use options::{IdMap, SshFSOption};
 
-use statics::{NewSettings, global_settings, counters};
+use statics::{NewSettings, global_settings, counters, sshfs_operations};
 
 const IDMAP_DEFAULT: IdMap = if cfg!(target_os = "macos") {
     IdMap::User
@@ -3399,7 +3399,7 @@ unsafe extern "C" fn sshfs_access(
     };
     let mut err: libc::c_int = 0 as libc::c_int;
     if mask & 1 as libc::c_int != 0 {
-        err = ((*sshfs.op).getattr)
+        err = ((*sshfs_operations).getattr)
             .expect(
                 "non-null function pointer",
             )(path, &mut stbuf, 0 as *mut fuse_file_info);
@@ -3906,7 +3906,7 @@ unsafe extern "C" fn sshfs_mkdir(
     );
     buf_free(&mut buf);
     if err == -(1 as libc::c_int) {
-        if ((*sshfs.op).access)
+        if ((*sshfs_operations).access)
             .expect("non-null function pointer")(path, 4 as libc::c_int)
             == 0 as libc::c_int
         {
@@ -6359,13 +6359,13 @@ unsafe fn main_0(
 
 
     if global_settings.dir_cache {
-        sshfs.op = cache_wrap(&mut sshfs_oper);
+        sshfs_operations = cache_wrap(&mut sshfs_oper);
     } else {
-        sshfs.op = &mut sshfs_oper;
+        sshfs_operations = &mut sshfs_oper;
     }
     let mut fuse = fuse_new(
         args,
-        sshfs.op,
+        sshfs_operations,
         std::mem::size_of::<fuse_operations>() as libc::c_ulong,
         0 as *mut libc::c_void,
     );
