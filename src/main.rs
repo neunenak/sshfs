@@ -1062,7 +1062,6 @@ pub struct sshfs {
     pub transform_symlinks: libc::c_int,
     pub follow_symlinks: libc::c_int,
     pub no_check_root: libc::c_int,
-    pub detect_uid: libc::c_int,
     pub idmap: libc::c_int,
     pub nomap: libc::c_int,
     pub disable_hardlink: libc::c_int,
@@ -1162,7 +1161,6 @@ static mut sshfs: sshfs = sshfs {
     transform_symlinks: 0,
     follow_symlinks: 0,
     no_check_root: 0,
-    detect_uid: 0,
     idmap: 0,
     nomap: 0,
     disable_hardlink: 0,
@@ -6117,25 +6115,8 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
     sshfs_item.truncate_workaround = 0 as libc::c_int;
     sshfs_item.buflimit_workaround = 0 as libc::c_int;
     sshfs_item.createmode_workaround = 0 as libc::c_int;
-    //sshfs_item.ssh_ver = 2;
-    //sshfs_item.max_conns = 1 as libc::c_int;
     sshfs_item.ptyfd = -(1 as libc::c_int);
-    //sshfs_item.dir_cache = 1 as libc::c_int;
-    //sshfs_item.foreground = if matches.get_flag("foreground") { 1 } else { 0 };
     sshfs_item.ptypassivefd = -(1 as libc::c_int);
-    sshfs_item.delay_connect = 0 as libc::c_int;
-    //sshfs_item.passive = 0 as libc::c_int;
-    sshfs_item.detect_uid = 0 as libc::c_int;
-
-    /*
-    sshfs_item.idmap = match IDMAP_DEFAULT {
-        "none" => IDMAP_NONE as i32,
-        "user" => IDMAP_USER as i32,
-        _ => unreachable!(),
-    };
-    */
-
-    sshfs_item.nomap = NOMAP_ERROR as libc::c_int;
 
     new_settings.debug = *matches.get_one::<bool>("debug").unwrap_or(&false) ||
         option_matches.contains(&SshFSOption::Debug);
