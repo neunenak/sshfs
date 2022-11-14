@@ -17,3 +17,4 @@ lazy_static = "1.4.0"
 clap = { version = "4.0.19", features = ["string"] }
 nix = "0.25.0"
 rand = "0.8.5"
+time = "0.3.17"
