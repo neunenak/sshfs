@@ -4085,18 +4085,25 @@ unsafe extern "C" fn sshfs_ext_posix_rename(
     buf_free(&mut buf);
     return err;
 }
-unsafe extern "C" fn random_string(mut str: *mut libc::c_char, mut length: libc::c_int) {
-    let mut i: libc::c_int = 0;
-    i = 0 as libc::c_int;
-    while i < length {
-        let fresh32 = str;
-        str = str.offset(1);
-        *fresh32 = ('0' as i32 + rand_r(&mut sshfs.randseed) % 10 as libc::c_int)
-            as libc::c_char;
+
+unsafe fn random_string(mut str_ptr: *mut libc::c_char, length: libc::c_int) {
+    use rand::{thread_rng, Rng};
+
+    let mut rng = thread_rng();
+    let mut i = 0;
+    loop {
+        let rand_val: i8 = rng.gen_range(0..10);
+        let ch = '0' as i8 + rand_val;
+        *(str_ptr.offset(i)) = ch;
+
         i += 1;
+        if i >= (length as isize) {
+            break;
+        }
     }
-    *str = '\0' as i32 as libc::c_char;
+    *(str_ptr.offset(length as isize)) = 0;
 }
+
 unsafe extern "C" fn sshfs_rename(
     mut from: *const libc::c_char,
     mut to: *const libc::c_char,
@@ -6347,7 +6354,6 @@ unsafe fn main_0(
     if res == -(1 as libc::c_int) {
         exit(1 as libc::c_int);
     }
-    sshfs.randseed = time(0 as *mut time_t) as libc::c_uint;
 
     add_comma_escaped_hostname(args, host_cstring.as_ptr());
 
@@ -6434,8 +6440,6 @@ unsafe fn main_0(
             sshfs.min_rtt, counters.max_rtt, avg_rtt, counters.num_connect
         );
     }
-    fuse_opt_free_args(&mut sshfs.ssh_args);
-    //free(sshfs.directport as *mut libc::c_void);
     return res;
 }
 
