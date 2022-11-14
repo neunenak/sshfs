@@ -6243,18 +6243,11 @@ unsafe fn main_0(
 
         },
         IdMap::File => {
-            sshfs.uid_map = 0 as *mut GHashTable;
-            sshfs.gid_map = 0 as *mut GHashTable;
-            sshfs.r_uid_map = 0 as *mut GHashTable;
-            sshfs.r_gid_map = 0 as *mut GHashTable;
-
             id_map::handle_id_maps(global_settings.uidfile.as_ref(), global_settings.gidfile.as_ref());
         }
         IdMap::None => (),
     }
 
-    free(sshfs.uid_file as *mut libc::c_void);
-    free(sshfs.gid_file as *mut libc::c_void);
     if global_settings.debug {
         eprintln!("SSHFS version {}", SSHFS_VERSION);
     }
