@@ -1026,7 +1026,6 @@ pub struct read_chunk {
     pub sio: sshfs_io,
 }
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct sshfs_file {
     pub handle: buffer,
     pub write_reqs: list_head,

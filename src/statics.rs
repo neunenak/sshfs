@@ -2,6 +2,15 @@ use crate::options::{IdMap, NoMap};
 use crate::IDMAP_DEFAULT;
 use std::path::PathBuf;
 use crate::fuse_operations;
+use crate::Request;
+use std::collections::HashMap;
+use std::sync::Mutex;
+
+/*
+lazy_static::lazy_static! {
+    static ref request_table: Mutex<HashMap<u32, Request>> = Mutex::new(HashMap::new());
+}
+*/
 
 #[derive(Debug, Clone)]
 pub struct NewSettings {
