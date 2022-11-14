@@ -14,7 +14,8 @@ pub unsafe fn ssh_connect(max_conns: u32, no_check_root: bool, delay_connect: bo
         return -(1 as libc::c_int);
     }
     if !delay_connect {
-        if connect_remote(&mut *(sshfs.conns).offset(0 as libc::c_int as isize))
+        let connection = &mut crate::statics::global_connections[0];
+        if connect_remote(connection)
             == -(1 as libc::c_int)
         {
             return -(1 as libc::c_int);
@@ -32,7 +33,7 @@ pub unsafe fn ssh_connect(max_conns: u32, no_check_root: bool, delay_connect: bo
         let ptr = base_path_cstring.as_ptr();
 
         if !no_check_root
-            && sftp_check_root(&mut *(sshfs.conns).offset(0 as libc::c_int as isize), ptr)
+            && sftp_check_root(connection, ptr)
                 != 0 as libc::c_int
         {
             return -(1 as libc::c_int);
@@ -42,25 +43,17 @@ pub unsafe fn ssh_connect(max_conns: u32, no_check_root: bool, delay_connect: bo
 }
 
 unsafe fn processing_init(max_conns: u32) -> libc::c_int {
-    let mut i: libc::c_int = 0;
     signal(SIGPIPE, SIG_IGN);
 
     pthread_mutex_init(&mut sshfs.lock, 0 as *const pthread_mutexattr_t);
-    i = 0 as libc::c_int;
-    while i < max_conns.try_into().unwrap() {
-        pthread_mutex_init(
-            &mut (*(sshfs.conns).offset(i as isize)).lock_write,
-            0 as *const pthread_mutexattr_t,
-        );
-        i += 1;
-    }
     pthread_cond_init(&mut sshfs.outstanding_cond, 0 as *const pthread_condattr_t);
+
     sshfs.reqtab = crate::g_hash_table_new(None, None);
     if (sshfs.reqtab).is_null() {
         eprintln!("failed to create hash table");
-
         return -1;
     }
+
     if max_conns > 1 {
         sshfs.conntab = crate::g_hash_table_new_full(
             Some(crate::g_str_hash as unsafe extern "C" fn(crate::gconstpointer) -> crate::guint),

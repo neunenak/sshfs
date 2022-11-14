@@ -19,8 +19,9 @@ use std::process::exit;
 use clap::ArgMatches;
 use std::path::{PathBuf, Path};
 use options::{IdMap, SshFSOption};
+use std::sync::Mutex;
 
-use statics::{NewSettings, global_settings, counters, sshfs_operations};
+use statics::{NewSettings, global_settings, counters, sshfs_operations, global_connections};
 
 const IDMAP_DEFAULT: IdMap = if cfg!(target_os = "macos") {
     IdMap::User
@@ -951,10 +952,10 @@ pub type GHashTable = _GHashTable;
 pub type GHRFunc = Option::<
     unsafe extern "C" fn(gpointer, gpointer, gpointer) -> gboolean,
 >;
-#[derive(Copy, Clone)]
-#[repr(C)]
+
+#[derive(Default)]
 pub struct conn {
-    pub lock_write: pthread_mutex_t,
+    pub lock_write: Mutex<()>,
     pub processing_thread_started: libc::c_int,
     pub rfd: libc::c_int,
     pub wfd: libc::c_int,
@@ -963,6 +964,10 @@ pub struct conn {
     pub dir_count: libc::c_int,
     pub file_count: libc::c_int,
 }
+
+
+
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct buffer {
@@ -2028,7 +2033,7 @@ unsafe extern "C" fn get_conn(
     let mut ce: *mut conntab_entry = 0 as *mut conntab_entry;
 
     if global_settings.max_conns == 1 {
-        return &mut *(sshfs.conns).offset(0 as libc::c_int as isize) as *mut conn;
+        return &mut global_connections[0] as *mut conn;
     }
     if !sf.is_null() {
         return (*sf).conn;
@@ -2044,35 +2049,39 @@ unsafe extern "C" fn get_conn(
         }
         pthread_mutex_unlock(&mut sshfs.lock);
     }
-    let mut best_index= 0;
+    let mut best_index: usize = 0;
     let mut best_score: u64 = !(0 as libc::c_ulonglong) as u64;
     let mut i = 0;
     while i < global_settings.max_conns {
-        let mut score: u64 = (((*(sshfs.conns).offset(i as isize)).req_count
+
+        let connection = &global_connections[i as usize];
+
+        let mut score: u64 = ((connection.req_count
             as u64) << 43 as libc::c_int)
             .wrapping_add(
-                ((*(sshfs.conns).offset(i as isize)).dir_count as u64)
+                (connection.dir_count as u64)
                     << 22 as libc::c_int,
             )
             .wrapping_add(
-                ((*(sshfs.conns).offset(i as isize)).file_count as u64)
+                (connection.file_count as u64)
                     << 1 as libc::c_int,
             )
             .wrapping_add(
-                (if (*(sshfs.conns).offset(i as isize)).rfd >= 0 as libc::c_int {
-                    0 as libc::c_int
+                (if connection.rfd >= 0 as libc::c_int {
+                    0
                 } else {
-                    1 as libc::c_int
+                    1
                 }) as u64,
             );
         if score < best_score {
-            best_index = i;
+            best_index = i as usize;
             best_score = score;
         }
         i += 1;
     }
-    return &mut *(sshfs.conns).offset(best_index as isize) as *mut conn;
+    return &mut global_connections[best_index] as *mut conn;
 }
+
 unsafe extern "C" fn pty_master(mut name: *mut *mut libc::c_char) -> libc::c_int {
     let mut mfd: libc::c_int = 0;
     mfd = open(
@@ -2408,9 +2417,11 @@ unsafe extern "C" fn sftp_send_iov(
         iovout[fresh22 as usize] = *iov.offset(i as isize);
         i = i.wrapping_add(1);
     }
-    pthread_mutex_lock(&mut (*conn).lock_write);
-    res = do_write(conn, iovout.as_mut_ptr(), nout as size_t);
-    pthread_mutex_unlock(&mut (*conn).lock_write);
+    {
+        let mutex = &(*conn).lock_write;
+        let _lock = mutex.lock();
+        res = do_write(conn, iovout.as_mut_ptr(), nout as size_t);
+    }
     buf_free(&mut buf);
     return res;
 }
@@ -3139,7 +3150,7 @@ unsafe extern "C" fn sshfs_init(
     }
     (*conn).capable |= ((1 as libc::c_int) << 4 as libc::c_int) as libc::c_uint;
     if !global_settings.delay_connect  {
-        start_processing_thread(&mut *(sshfs.conns).offset(0 as libc::c_int as isize));
+        start_processing_thread(&mut global_connections[0]);
     }
     (*conn).time_gran = 1000000000 as libc::c_int as libc::c_uint;
     return 0 as *mut libc::c_void;
@@ -4464,7 +4475,7 @@ unsafe extern "C" fn sshfs_open_common(
         }
     } else {
         let ref mut fresh37 = (*sf).conn;
-        *fresh37 = &mut *(sshfs.conns).offset(0 as libc::c_int as isize) as *mut conn;
+        *fresh37 = &mut global_connections[0];
         ce = 0 as *mut conntab_entry;
     }
     (*sf).connver = (*(*sf).conn).connver;
@@ -6258,33 +6269,14 @@ unsafe fn main_0(
         eprintln!("value of max_conns option must be at least 1");
         exit(1);
     }
-    sshfs
-        .conns = ({
-        let mut __n: gsize = global_settings.max_conns as gsize;
-        let mut __s: gsize = ::std::mem::size_of::<conn>() as libc::c_ulong;
-        let mut __p: gpointer = 0 as *mut libc::c_void;
-        if __s == 1 as libc::c_int as libc::c_ulong {
-            __p = g_malloc0(__n);
-        } else if 0 != 0
-            && (__s == 0 as libc::c_int as libc::c_ulong
-                || __n
-                    <= (9223372036854775807 as libc::c_long as libc::c_ulong)
-                        .wrapping_mul(2 as libc::c_ulong)
-                        .wrapping_add(1 as libc::c_ulong)
-                        .wrapping_div(__s))
-        {
-            __p = g_malloc0(__n.wrapping_mul(__s));
-        } else {
-            __p = g_malloc0_n(__n, __s);
-        }
-        __p
-    }) as *mut conn;
-    let mut i = 0;
-    while i < global_settings.max_conns {
-        (*(sshfs.conns).offset(i as isize)).rfd = -(1 as libc::c_int);
-        (*(sshfs.conns).offset(i as isize)).wfd = -(1 as libc::c_int);
-        i += 1;
+
+    for _ in 0..global_settings.max_conns {
+        let mut connection = conn::default();
+        connection.rfd = -1;
+        connection.wfd = -1;
+        global_connections.push(connection);
     }
+
     find_base_path_rust();
     let host_cstring = CString::new(global_settings.host.as_ref().unwrap().clone().into_bytes()).unwrap();
 
