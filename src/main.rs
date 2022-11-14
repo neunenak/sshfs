@@ -183,21 +183,6 @@ extern "C" {
         __arg: *mut libc::c_void,
     ) -> libc::c_int;
     fn pthread_detach(__th: pthread_t) -> libc::c_int;
-    fn pthread_mutex_init(
-        __mutex: *mut pthread_mutex_t,
-        __mutexattr: *const pthread_mutexattr_t,
-    ) -> libc::c_int;
-    fn pthread_mutex_lock(__mutex: *mut pthread_mutex_t) -> libc::c_int;
-    fn pthread_mutex_unlock(__mutex: *mut pthread_mutex_t) -> libc::c_int;
-    fn pthread_cond_init(
-        __cond: *mut pthread_cond_t,
-        __cond_attr: *const pthread_condattr_t,
-    ) -> libc::c_int;
-    fn pthread_cond_broadcast(__cond: *mut pthread_cond_t) -> libc::c_int;
-    fn pthread_cond_wait(
-        __cond: *mut pthread_cond_t,
-        __mutex: *mut pthread_mutex_t,
-    ) -> libc::c_int;
     fn setsockopt(
         __fd: libc::c_int,
         __level: libc::c_int,
@@ -392,12 +377,6 @@ pub type pthread_t = libc::c_ulong;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union pthread_mutexattr_t {
-    pub __size: [libc::c_char; 4],
-    pub __align: libc::c_int,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union pthread_condattr_t {
     pub __size: [libc::c_char; 4],
     pub __align: libc::c_int,
 }
@@ -3282,7 +3261,7 @@ unsafe extern "C" fn sftp_request_send(
             eprintln!("[{}] {}", id, type_name(type_0));
         }
         std::mem::drop(lock);
-        err = -(5 as libc::c_int);
+        err = -libc::EIO;
         if sftp_send_iov(conn, type_0, id, iov, count) == -(1 as libc::c_int) {
             let mut rmed: gboolean = 0;
 
@@ -4304,18 +4283,21 @@ unsafe extern "C" fn sshfs_utimens(
     let mut sf: *mut sshfs_file = 0 as *mut sshfs_file;
     let mut asec: time_t = (*tv.offset(0 as libc::c_int as isize)).tv_sec;
     let mut msec: time_t = (*tv.offset(1 as libc::c_int as isize)).tv_sec;
-    let mut now: timeval = timeval { tv_sec: 0, tv_usec: 0 };
-    gettimeofday(&mut now, 0 as *mut libc::c_void);
+
+    let now = std::time::SystemTime::now();
+    let cur_time = now.duration_since(std::time::UNIX_EPOCH).unwrap();
+
     if asec == 0 as libc::c_int as libc::c_long {
-        asec = now.tv_sec;
+        asec = cur_time.as_secs() as i64;
     }
     if msec == 0 as libc::c_int as libc::c_long {
-        msec = now.tv_sec;
+        msec = cur_time.as_secs() as i64;
     }
+
     if !fi.is_null() {
         sf = get_sshfs_file(fi);
         if sshfs_file_is_conn(sf) == 0 {
-            return -(5 as libc::c_int);
+            return -libc::EIO;
         }
     }
     buf_init(&mut buf, 0 as libc::c_int as size_t);
@@ -4412,35 +4394,8 @@ unsafe extern "C" fn sshfs_open_common(
     let sshfs_file_size = std::mem::size_of::<sshfs_file>();
     sf = g_malloc0_n(1, sshfs_file_size as u64) as *mut sshfs_file;
     (*sf).write_finished = Condvar::new();
-
-
-    /*
-    sf = ({
-        let mut __n: gsize = 1 as libc::c_int as gsize;
-        let mut __s: gsize = ::std::mem::size_of::<sshfs_file>() as libc::c_ulong;
-        let mut __p: gpointer = 0 as *mut libc::c_void;
-        if __s == 1 as libc::c_int as libc::c_ulong {
-            __p = g_malloc0(__n);
-        } else if 0 != 0
-            && (__s == 0 as libc::c_int as libc::c_ulong
-                || __n
-                    <= (9223372036854775807 as libc::c_long as libc::c_ulong)
-                        .wrapping_mul(2 as libc::c_ulong)
-                        .wrapping_add(1 as libc::c_ulong)
-                        .wrapping_div(__s))
-        {
-            __p = g_malloc0(__n.wrapping_mul(__s));
-        } else {
-            __p = g_malloc0_n(__n, __s);
-        }
-        __p
-    }) as *mut sshfs_file;
-    */
     list_init(&mut (*sf).write_reqs);
 
-    /*
-    pthread_cond_init(&mut (*sf).write_finished, 0 as *const pthread_condattr_t);
-    */
     (*sf).is_seq = 0 as libc::c_int;
     (*sf).next_pos = 0 as libc::c_int as off_t;
 
