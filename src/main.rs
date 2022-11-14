@@ -965,9 +965,6 @@ pub struct conn {
     pub file_count: libc::c_int,
 }
 
-
-
-
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct buffer {
@@ -1004,11 +1001,9 @@ pub struct Request {
     pub conn: *mut conn,
 }
 pub type request_func = Option::<unsafe extern "C" fn(*mut Request) -> ()>;
-#[derive(Copy, Clone)]
-#[repr(C)]
 pub struct sshfs_io {
     pub num_reqs: libc::c_int,
-    pub finished: pthread_cond_t,
+    pub finished: Condvar,
     pub error: libc::c_int,
 }
 #[derive(Copy, Clone)]
@@ -1020,8 +1015,6 @@ pub struct read_req {
     pub size: size_t,
     pub res: ssize_t,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
 pub struct read_chunk {
     pub offset: off_t,
     pub size: size_t,
@@ -1030,11 +1023,10 @@ pub struct read_chunk {
     pub reqs: list_head,
     pub sio: sshfs_io,
 }
-#[derive(Copy, Clone)]
 pub struct sshfs_file {
     pub handle: buffer,
     pub write_reqs: list_head,
-    pub write_finished: pthread_cond_t,
+    pub write_finished: Condvar,
     pub write_error: libc::c_int,
     pub readahead: *mut read_chunk,
     pub next_pos: off_t,
@@ -1043,6 +1035,8 @@ pub struct sshfs_file {
     pub connver: libc::c_int,
     pub modifver: libc::c_int,
 }
+
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct conntab_entry {
@@ -4412,6 +4406,13 @@ unsafe extern "C" fn sshfs_open_common(
     if (*fi).flags & 0o2000 as libc::c_int != 0 {
         pflags |= 0x4 as libc::c_int as libc::c_uint;
     }
+
+    let sshfs_file_size = std::mem::size_of::<sshfs_file>();
+    sf = g_malloc0_n(1, sshfs_file_size as u64) as *mut sshfs_file;
+    (*sf).write_finished = Condvar::new();
+
+
+    /*
     sf = ({
         let mut __n: gsize = 1 as libc::c_int as gsize;
         let mut __s: gsize = ::std::mem::size_of::<sshfs_file>() as libc::c_ulong;
@@ -4432,8 +4433,12 @@ unsafe extern "C" fn sshfs_open_common(
         }
         __p
     }) as *mut sshfs_file;
+    */
     list_init(&mut (*sf).write_reqs);
+
+    /*
     pthread_cond_init(&mut (*sf).write_finished, 0 as *const pthread_condattr_t);
+    */
     (*sf).is_seq = 0 as libc::c_int;
     (*sf).next_pos = 0 as libc::c_int as off_t;
 
@@ -4586,19 +4591,22 @@ unsafe extern "C" fn sshfs_flush(
     if global_settings.sync_write {
         return 0 as libc::c_int;
     }
-    pthread_mutex_lock(&mut sshfs.lock);
-    if list_empty(&mut (*sf).write_reqs) == 0 {
-        curr_list = (*sf).write_reqs.prev;
-        list_del(&mut (*sf).write_reqs);
-        list_init(&mut (*sf).write_reqs);
-        list_add(&mut write_reqs, curr_list);
-        while list_empty(&mut write_reqs) == 0 {
-            pthread_cond_wait(&mut (*sf).write_finished, &mut sshfs.lock);
+
+    {
+        let lock = global_lock.lock().unwrap();
+
+        if list_empty(&mut (*sf).write_reqs) == 0 {
+            curr_list = (*sf).write_reqs.prev;
+            list_del(&mut (*sf).write_reqs);
+            list_init(&mut (*sf).write_reqs);
+            list_add(&mut write_reqs, curr_list);
+
+            let write_finished = &(*sf).write_finished;
+            let _lock = write_finished.wait_while(lock, |_| list_empty(&mut write_reqs) == 0);
         }
+        err = (*sf).write_error;
+        (*sf).write_error = 0 as libc::c_int;
     }
-    err = (*sf).write_error;
-    (*sf).write_error = 0 as libc::c_int;
-    pthread_mutex_unlock(&mut sshfs.lock);
     return err;
 }
 unsafe extern "C" fn sshfs_fsync(
@@ -4708,7 +4716,7 @@ unsafe extern "C" fn sshfs_read_end(mut req: *mut Request) {
     let ref mut fresh42 = (*(*rreq).sio).num_reqs;
     *fresh42 -= 1;
     if (*(*rreq).sio).num_reqs == 0 {
-        pthread_cond_broadcast(&mut (*(*rreq).sio).finished);
+        (*(*rreq).sio).finished.notify_all();
     }
 }
 unsafe extern "C" fn sshfs_read_begin(mut req: *mut Request) {
@@ -4742,7 +4750,6 @@ unsafe extern "C" fn sshfs_send_read(
         __p
     }) as *mut read_chunk;
     let mut handle: *mut buffer = &mut (*sf).handle;
-    pthread_cond_init(&mut (*chunk).sio.finished, 0 as *const pthread_condattr_t);
     list_init(&mut (*chunk).reqs);
     (*chunk).size = size;
     (*chunk).offset = offset;
@@ -4821,22 +4828,22 @@ unsafe extern "C" fn wait_chunk(
 ) -> libc::c_int {
     let mut res: libc::c_int = 0 as libc::c_int;
     let mut rreq: *mut read_req = 0 as *mut read_req;
-    pthread_mutex_lock(&mut sshfs.lock);
-    while (*chunk).sio.num_reqs != 0 {
-        pthread_cond_wait(&mut (*chunk).sio.finished, &mut sshfs.lock);
+    {
+        let sio = &(*chunk).sio;
+        let lock = global_lock.lock().unwrap();
+        let _lock = sio.finished.wait_while(lock, |_| sio.num_reqs != 0).unwrap();
     }
-    pthread_mutex_unlock(&mut sshfs.lock);
     if (*chunk).sio.error != 0 {
         if (*chunk).sio.error != 1 as libc::c_int {
             res = (*chunk).sio.error;
         }
     } else {
         while list_empty(&mut (*chunk).reqs) == 0 && size != 0 {
-            rreq = ({
+            rreq = {
                 let mut __mptr: *const list_head = (*chunk).reqs.prev;
                 (__mptr as *mut libc::c_char).offset(-(8 as libc::c_ulong as isize))
                     as *mut read_req
-            });
+            };
             if (*rreq).res < 0 as libc::c_int as libc::c_long {
                 (*chunk).sio.error = (*rreq).res as libc::c_int;
                 break;
@@ -5024,7 +5031,7 @@ unsafe extern "C" fn sshfs_write_end(mut req: *mut Request) {
         }
     }
     list_del(&mut (*req).list);
-    pthread_cond_broadcast(&mut (*sf).write_finished);
+    (*sf).write_finished.notify_all();
 }
 unsafe extern "C" fn sshfs_async_write(
     mut sf: *mut sshfs_file,
@@ -5096,7 +5103,7 @@ unsafe extern "C" fn sshfs_sync_write_end(mut req: *mut Request) {
     let ref mut fresh52 = (*sio).num_reqs;
     *fresh52 -= 1;
     if (*sio).num_reqs == 0 {
-        pthread_cond_broadcast(&mut (*sio).finished);
+        (*sio).finished.notify_all();
     }
 }
 unsafe extern "C" fn sshfs_sync_write(
@@ -5107,29 +5114,12 @@ unsafe extern "C" fn sshfs_sync_write(
 ) -> libc::c_int {
     let mut err: libc::c_int = 0 as libc::c_int;
     let mut handle: *mut buffer = &mut (*sf).handle;
-    let mut sio: sshfs_io = {
-        let mut init = sshfs_io {
-            num_reqs: 0 as libc::c_int,
-            finished: pthread_cond_t {
-                __data: __pthread_cond_s {
-                    __wseq: __atomic_wide_counter {
-                        __value64: 0,
-                    },
-                    __g1_start: __atomic_wide_counter {
-                        __value64: 0,
-                    },
-                    __g_refs: [0; 2],
-                    __g_size: [0; 2],
-                    __g1_orig_size: 0,
-                    __wrefs: 0,
-                    __g_signals: [0; 2],
-                },
-            },
-            error: 0 as libc::c_int,
-        };
-        init
+    let mut sio = sshfs_io {
+        num_reqs: 0 as libc::c_int,
+        finished: Condvar::new(),
+        error: 0 as libc::c_int,
     };
-    pthread_cond_init(&mut sio.finished, 0 as *const pthread_condattr_t);
+
     while err == 0 && size != 0 {
         let mut buf: buffer = buffer {
             p: 0 as *mut u8,
@@ -5168,11 +5158,12 @@ unsafe extern "C" fn sshfs_sync_write(
         wbuf = wbuf.offset(bsize as isize);
         offset = (offset as libc::c_ulong).wrapping_add(bsize) as off_t as off_t;
     }
-    pthread_mutex_lock(&mut sshfs.lock);
-    while sio.num_reqs != 0 {
-        pthread_cond_wait(&mut sio.finished, &mut sshfs.lock);
+
+    {
+        let lock = global_lock.lock().unwrap();
+        let lock = sio.finished.wait_while(lock, |_| sio.num_reqs !=0 );
     }
-    pthread_mutex_unlock(&mut sshfs.lock);
+
     if err == 0 {
         err = sio.error;
     }
