@@ -1928,7 +1928,7 @@ unsafe fn ssh_add_arg_rust(arg: &str) {
     global_settings.ssh_args.push(arg.to_string());
 }
 
-unsafe extern "C" fn pty_expect_loop(mut conn: *mut conn) -> libc::c_int {
+unsafe fn pty_expect_loop(mut conn: *mut conn) -> libc::c_int {
     let mut res: libc::c_int = 0;
     let mut buf: [libc::c_char; 256] = [0; 256];
     let mut passwd_str: *const libc::c_char = b"assword:\0" as *const u8
@@ -3065,18 +3065,16 @@ unsafe fn connect_remote(mut conn: *mut conn) -> libc::c_int {
     }
     return err;
 }
-unsafe extern "C" fn start_processing_thread(mut conn: *mut conn) -> libc::c_int {
-    let mut err: libc::c_int = 0;
-    let mut thread_id: pthread_t = 0;
+unsafe fn start_processing_thread(mut conn: *mut conn) -> libc::c_int {
     let mut oldset: sigset_t = sigset_t { __val: [0; 16] };
     let mut newset: sigset_t = sigset_t { __val: [0; 16] };
     if (*conn).processing_thread_started != 0 {
-        return 0 as libc::c_int;
+        return 0;
     }
     if (*conn).rfd == -(1 as libc::c_int) {
-        err = connect_remote(conn);
+        let err = connect_remote(conn);
         if err != 0 {
-            return -(5 as libc::c_int);
+            return -libc::EIO;
         }
     }
     if global_settings.detect_uid {
@@ -3089,7 +3087,10 @@ unsafe extern "C" fn start_processing_thread(mut conn: *mut conn) -> libc::c_int
     sigaddset(&mut newset, 1 as libc::c_int);
     sigaddset(&mut newset, 3 as libc::c_int);
     pthread_sigmask(0 as libc::c_int, &mut newset, &mut oldset);
-    err = pthread_create(
+
+
+    let mut thread_id: pthread_t = 0;
+    let err = pthread_create(
         &mut thread_id,
         0 as *const pthread_attr_t,
         Some(
@@ -3104,13 +3105,14 @@ unsafe extern "C" fn start_processing_thread(mut conn: *mut conn) -> libc::c_int
             b"failed to create thread: %s\n\0" as *const u8 as *const libc::c_char,
             strerror(err),
         );
-        return -(5 as libc::c_int);
+        return -libc::EIO;
     }
     pthread_detach(thread_id);
     pthread_sigmask(2 as libc::c_int, &mut oldset, 0 as *mut __sigset_t);
     (*conn).processing_thread_started = 1 as libc::c_int;
-    return 0 as libc::c_int;
+    return 0;
 }
+
 unsafe extern "C" fn sshfs_init(
     mut conn: *mut fuse_conn_info,
     mut cfg: *mut fuse_config,
@@ -6394,7 +6396,6 @@ unsafe fn main_0(
     }
     return res;
 }
-
 
 pub fn main() {
     let parsed_args = options::sshfs_options();
