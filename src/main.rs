@@ -6428,8 +6428,8 @@ unsafe fn main_0(
             received:           {} messages, {} bytes
             rtt min/max/avg:    {}ms/{}ms/{}ms
             num connect:        {}
-            "#, counters.num_sent, counters.bytes_sent, sshfs.num_received, counters.bytes_received,
-            sshfs.min_rtt, counters.max_rtt, avg_rtt, counters.num_connect
+            "#, counters.num_sent, counters.bytes_sent, counters.num_received, counters.bytes_received,
+            counters.min_rtt, counters.max_rtt, avg_rtt, counters.num_connect
         );
     }
     return res;
