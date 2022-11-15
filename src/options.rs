@@ -122,7 +122,6 @@ impl TypedValueParser for SshFSOptionValueParser {
                 .map_err(|_| Error::new(ErrorKind::InvalidValue).with_cmd(cmd))?;
             return Ok(SshFSOption::SshProtocol(n));
         }
-        //TODO parse workarounds
         if let Some(rest) = value.strip_prefix("idmap=") {
             let idmap = match rest {
                 "none" => IdMap::None,
@@ -189,6 +188,19 @@ impl TypedValueParser for SshFSOptionValueParser {
 
             "writeback_cache=no" => SshFSOption::Discarded,
             "unreliable_append" => SshFSOption::Discarded,
+
+            "rename" => SshFSOption::Workaround(Workaround::Rename(true)),
+            "norename" => SshFSOption::Workaround(Workaround::Rename(false)),
+            "renamexdev" => SshFSOption::Workaround(Workaround::RenameXDev(true)),
+            "norenamexdev" => SshFSOption::Workaround(Workaround::RenameXDev(false)),
+            "truncate" => SshFSOption::Workaround(Workaround::Truncate(true)),
+            "notruncate" => SshFSOption::Workaround(Workaround::Truncate(false)),
+            "buflimit" => SshFSOption::Workaround(Workaround::Buflimit(true)),
+            "nobuflimit" => SshFSOption::Workaround(Workaround::Buflimit(false)),
+            "fstat" => SshFSOption::Workaround(Workaround::Fstat(true)),
+            "nofstat" => SshFSOption::Workaround(Workaround::Fstat(false)),
+            "createmode" => SshFSOption::Workaround(Workaround::Createmode(true)),
+            "nocreatemode" => SshFSOption::Workaround(Workaround::Createmode(false)),
 
             /* These may come in from /etc/fstab - we just ignore them */
             "auto" | "noauto" | "user" | "nouser" | "users" | "_netdev" => SshFSOption::Discarded,

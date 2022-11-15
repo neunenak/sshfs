@@ -1,7 +1,7 @@
 use crate::options::{IdMap, NoMap};
 use crate::Request;
 use crate::IDMAP_DEFAULT;
-use crate::{Connection, fuse_operations};
+use crate::{fuse_operations, Connection};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Condvar, Mutex};
@@ -17,7 +17,6 @@ pub static mut global_connections: Vec<Connection> = Vec::new();
 pub static global_lock: Mutex<()> = Mutex::new(());
 
 pub static global_cond: Condvar = Condvar::new();
-
 
 #[derive(Debug, Clone)]
 pub struct NewSettings {
@@ -53,6 +52,12 @@ pub struct NewSettings {
     pub max_conns: u32,
     pub blksize: u32,
     pub detect_uid: bool,
+    pub rename_workaround: bool,
+    pub renamexdev_workaround: bool,
+    pub truncate_workaround: bool,
+    pub buflimit_workaround: bool,
+    pub fstat_workaround: bool,
+    pub createmode_workaround: bool,
 }
 
 pub static mut global_settings: NewSettings = NewSettings {
@@ -88,6 +93,12 @@ pub static mut global_settings: NewSettings = NewSettings {
     max_conns: 1,
     blksize: 0,
     detect_uid: false,
+    rename_workaround: false,
+    renamexdev_workaround: false,
+    truncate_workaround: false,
+    buflimit_workaround: false,
+    createmode_workaround: false,
+    fstat_workaround: false,
 };
 
 #[derive(Default, Clone)]

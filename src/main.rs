@@ -18,7 +18,7 @@ use std::ffi::{CString, CStr};
 use std::process::exit;
 use clap::ArgMatches;
 use std::path::{PathBuf, Path};
-use options::{IdMap, SshFSOption};
+use options::{IdMap, SshFSOption, Workaround};
 use std::sync::{Condvar, Mutex};
 
 use statics::{global_lock, global_cond, NewSettings, global_settings, counters, sshfs_operations, global_connections};
@@ -384,13 +384,6 @@ pub union pthread_mutexattr_t {
 #[repr(C)]
 pub union pthread_attr_t {
     pub __size: [libc::c_char; 56],
-    pub __align: libc::c_long,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union pthread_mutex_t {
-    pub __data: __pthread_mutex_s,
-    pub __size: [libc::c_char; 40],
     pub __align: libc::c_long,
 }
 #[derive(Copy, Clone)]
@@ -1028,7 +1021,6 @@ pub struct conntab_entry {
 pub struct sshfs {
     pub directport: *mut libc::c_char,
     pub workarounds: *mut libc::c_char,
-    pub rename_workaround: libc::c_int,
     pub renamexdev_workaround: libc::c_int,
     pub truncate_workaround: libc::c_int,
     pub buflimit_workaround: libc::c_int,
@@ -1069,7 +1061,6 @@ pub struct sshfs {
     pub base_path: *mut libc::c_char,
     pub reqtab: *mut GHashTable,
     pub conntab: *mut GHashTable,
-    pub lock: pthread_mutex_t,
     pub randseed: libc::c_uint,
     pub max_conns: libc::c_int,
     pub conns: *mut Connection,
@@ -1126,7 +1117,6 @@ unsafe extern "C" fn __bswap_32(mut __bsx: u32) -> u32 {
 static mut sshfs: sshfs = sshfs {
     directport: 0 as *const libc::c_char as *mut libc::c_char,
     workarounds: 0 as *const libc::c_char as *mut libc::c_char,
-    rename_workaround: 0,
     renamexdev_workaround: 0,
     truncate_workaround: 0,
     buflimit_workaround: 0,
@@ -1167,23 +1157,6 @@ static mut sshfs: sshfs = sshfs {
     base_path: 0 as *const libc::c_char as *mut libc::c_char,
     reqtab: 0 as *const GHashTable as *mut GHashTable,
     conntab: 0 as *const GHashTable as *mut GHashTable,
-    lock: pthread_mutex_t {
-        __data: __pthread_mutex_s {
-            __lock: 0,
-            __count: 0,
-            __owner: 0,
-            __nusers: 0,
-            __kind: 0,
-            __spins: 0,
-            __elision: 0,
-            __list: __pthread_list_t {
-                __prev: 0 as *const __pthread_internal_list
-                    as *mut __pthread_internal_list,
-                __next: 0 as *const __pthread_internal_list
-                    as *mut __pthread_internal_list,
-            },
-        },
-    },
     randseed: 0,
     max_conns: 0,
     conns: 0 as *const Connection as *mut Connection,
@@ -2701,7 +2674,7 @@ unsafe extern "C" fn sftp_init_reply_ok(
                     == 0 as libc::c_int
             {
                 sshfs.ext_posix_rename = 1 as libc::c_int;
-                sshfs.rename_workaround = 0 as libc::c_int;
+                global_settings.rename_workaround = false;
             }
             if strcmp(ext, b"statvfs@openssh.com\0" as *const u8 as *const libc::c_char)
                 == 0 as libc::c_int
@@ -3100,7 +3073,7 @@ unsafe extern "C" fn sshfs_init(
         global_settings.sync_read = true;
     }
     (*cfg)
-        .nullpath_ok = !(sshfs.truncate_workaround != 0 || sshfs.fstat_workaround != 0)
+        .nullpath_ok = !(global_settings.truncate_workaround  || global_settings.fstat_workaround )
         as libc::c_int;
     if global_settings.max_conns > 1 {
         (*cfg).nullpath_ok = 0 as libc::c_int;
@@ -4089,7 +4062,7 @@ unsafe extern "C" fn sshfs_rename(
     } else {
         err = sshfs_do_rename(from, to);
     }
-    if err == -(1 as libc::c_int) && sshfs.rename_workaround != 0 {
+    if err == -(1 as libc::c_int) && global_settings.rename_workaround {
         let mut tolen: size_t = strlen(to);
         if tolen.wrapping_add(8 as libc::c_int as libc::c_ulong)
             < 4096 as libc::c_int as libc::c_ulong
@@ -4109,7 +4082,7 @@ unsafe extern "C" fn sshfs_rename(
             }
         }
     }
-    if err == -(1 as libc::c_int) && sshfs.renamexdev_workaround != 0 {
+    if err == -(1 as libc::c_int) && global_settings.renamexdev_workaround {
         err = -(18 as libc::c_int);
     }
     if err == 0 && global_settings.max_conns > 1 {
@@ -5212,7 +5185,7 @@ unsafe extern "C" fn sshfs_create(
     mut mode: mode_t,
     mut fi: *mut fuse_file_info,
 ) -> libc::c_int {
-    if sshfs.createmode_workaround != 0 {
+    if global_settings.createmode_workaround {
         mode = 0 as libc::c_int as mode_t;
     }
     return sshfs_open_common(path, mode, fi);
@@ -5236,7 +5209,7 @@ unsafe extern "C" fn sshfs_truncate(
         }
     }
     sshfs_inc_modifver();
-    if sshfs.truncate_workaround != 0 {
+    if global_settings.truncate_workaround {
         return sshfs_truncate_workaround(path, size, fi);
     }
     buf_init(&mut buf, 0 as libc::c_int as size_t);
@@ -5274,7 +5247,7 @@ unsafe extern "C" fn sshfs_getattr(
         size: 0,
     };
     let mut sf: *mut sshfs_file = 0 as *mut sshfs_file;
-    if !fi.is_null() && sshfs.fstat_workaround == 0 {
+    if !fi.is_null() && !global_settings.fstat_workaround {
         sf = get_sshfs_file(fi);
         if sshfs_file_is_conn(sf) == 0 {
             return -(5 as libc::c_int);
@@ -5993,19 +5966,15 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
             SshFSOption::MaxWrite(n) => {
                 new_settings.max_write = *n;
             }
-
             SshFSOption::DirCache(b) => {
                 new_settings.dir_cache = *b;
             }
-
             SshFSOption::DirectIO => {
                 new_settings.direct_io = true;
             }
-
             SshFSOption::PasswordStdin => {
                 new_settings.password_stdin = true;
             }
-
             SshFSOption::NoCheckRoot => {
                 new_settings.no_check_root = true;
             },
@@ -6046,7 +6015,27 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
             SshFSOption::DirectPort(s) => {
                 new_settings.directport = Some(s.clone());
             },
-            SshFSOption::Workaround(..) => (),
+            SshFSOption::Workaround(workaround) => match workaround {
+                Workaround::None => (),
+                Workaround::Rename(b) => {
+                    new_settings.rename_workaround = *b;
+                }
+                Workaround::RenameXDev(b) => {
+                    new_settings.renamexdev_workaround = *b;
+                },
+                Workaround::Truncate(b) => {
+                    new_settings.truncate_workaround = *b;
+                },
+                Workaround::Buflimit(b) => {
+                    new_settings.buflimit_workaround = *b;
+                }
+                Workaround::Fstat(b) => {
+                    new_settings.fstat_workaround = *b;
+                },
+                Workaround::Createmode(b) => {
+                    new_settings.createmode_workaround = *b;
+                }
+            },
             SshFSOption::SshfsSync => {
                 new_settings.sync_write = true;
             },
@@ -6075,9 +6064,6 @@ fn set_sshfs_from_options(sshfs_item: &mut sshfs, new_settings: &mut NewSettings
         new_settings.max_write = 65536;
     }
 
-    sshfs_item.rename_workaround = 0 as libc::c_int;
-    sshfs_item.renamexdev_workaround = 0 as libc::c_int;
-    sshfs_item.truncate_workaround = 0 as libc::c_int;
     sshfs_item.buflimit_workaround = 0 as libc::c_int;
     sshfs_item.createmode_workaround = 0 as libc::c_int;
     sshfs_item.ptyfd = -(1 as libc::c_int);
@@ -6202,13 +6188,13 @@ unsafe fn main_0(
     if global_settings.debug {
         global_settings.foreground = true;
     }
-    if sshfs.buflimit_workaround != 0 {
+    if global_settings.buflimit_workaround  {
         sshfs.max_outstanding_len = 8388608 as libc::c_int as libc::c_uint;
     } else {
         sshfs.max_outstanding_len = !(0 as libc::c_int) as libc::c_uint;
     }
     if global_settings.max_conns > 1 {
-        if sshfs.buflimit_workaround != 0 {
+        if global_settings.buflimit_workaround {
             eprintln!("buflimit workaround is not supported with parallel connections");
             exit(1);
         }
