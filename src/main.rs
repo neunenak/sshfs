@@ -6284,12 +6284,12 @@ unsafe fn main_0(
                 as *const libc::c_char,
         );
     }
-    res = ssh::ssh_connect(global_settings.max_conns, global_settings.no_check_root, global_settings.delay_connect);
-    if res == -(1 as libc::c_int) {
+    if let Err(()) = ssh::ssh_connect(global_settings.max_conns, global_settings.no_check_root, global_settings.delay_connect) {
         fuse_unmount(fuse);
         fuse_destroy(fuse);
-        exit(1 as libc::c_int);
+        exit(1);
     }
+
     res = fuse_daemonize(if global_settings.foreground { 1 } else { 0 });
     if res == -(1 as libc::c_int) {
         fuse_unmount(fuse);

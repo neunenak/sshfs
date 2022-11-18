@@ -4,16 +4,13 @@ use crate::{connect_remote, sftp_check_root};
 use libc::{signal, SIGPIPE, SIG_IGN};
 use std::ffi::CString;
 
-pub unsafe fn ssh_connect(max_conns: u32, no_check_root: bool, delay_connect: bool) -> libc::c_int {
-    let mut res: libc::c_int = 0;
-    res = processing_init(max_conns);
-    if res == -(1 as libc::c_int) {
-        return -(1 as libc::c_int);
-    }
+pub unsafe fn ssh_connect(max_conns: u32, no_check_root: bool, delay_connect: bool) -> Result<(), ()> {
+    processing_init(max_conns)?;
+
     if !delay_connect {
         let connection = &mut crate::statics::global_connections[0];
         if connect_remote(connection) == -(1 as libc::c_int) {
-            return -(1 as libc::c_int);
+            return Err(());
         }
 
         let base_path_cstring = CString::new(
@@ -28,19 +25,19 @@ pub unsafe fn ssh_connect(max_conns: u32, no_check_root: bool, delay_connect: bo
         let ptr = base_path_cstring.as_ptr();
 
         if !no_check_root && sftp_check_root(connection, ptr) != 0 as libc::c_int {
-            return -(1 as libc::c_int);
+            return Err(());
         }
     }
-    return 0 as libc::c_int;
+    Ok(())
 }
 
-unsafe fn processing_init(max_conns: u32) -> libc::c_int {
+unsafe fn processing_init(max_conns: u32) -> Result<(), ()> {
     signal(SIGPIPE, SIG_IGN);
 
     sshfs.reqtab = crate::g_hash_table_new(None, None);
     if (sshfs.reqtab).is_null() {
         eprintln!("failed to create hash table");
-        return -1;
+        return Err(());
     }
 
     if max_conns > 1 {
@@ -58,8 +55,8 @@ unsafe fn processing_init(max_conns: u32) -> libc::c_int {
         );
         if (sshfs.conntab).is_null() {
             eprintln!("failed to create hash table");
-            return -1;
+            return Err(());
         }
     }
-    return 0 as libc::c_int;
+    Ok(())
 }
