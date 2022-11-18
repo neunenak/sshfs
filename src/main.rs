@@ -21,7 +21,7 @@ use std::path::{PathBuf, Path};
 use options::{IdMap, SshFSOption, Workaround};
 use std::sync::{Condvar, Mutex};
 
-use statics::{global_lock, global_cond, NewSettings, global_settings, counters, sshfs_operations, global_connections};
+use statics::{global_lock, password_ptr, global_cond, NewSettings, global_settings, counters, sshfs_operations, global_connections};
 
 const IDMAP_DEFAULT: IdMap = if cfg!(target_os = "macos") {
     IdMap::User
@@ -1935,8 +1935,8 @@ unsafe fn pty_expect_loop(mut conn: *mut Connection) -> libc::c_int {
             {
                 write(
                     sshfs.ptyfd,
-                    sshfs.password as *const libc::c_void,
-                    strlen(sshfs.password),
+                    password_ptr as *const libc::c_void,
+                    strlen(password_ptr),
                 );
             }
             memmove(
@@ -1950,9 +1950,9 @@ unsafe fn pty_expect_loop(mut conn: *mut Connection) -> libc::c_int {
     }
     if !global_settings.reconnect {
         let mut size: size_t = getpagesize() as size_t;
-        memset(sshfs.password as *mut libc::c_void, 0 as libc::c_int, size);
-        munmap(sshfs.password as *mut libc::c_void, size);
-        sshfs.password = 0 as *mut libc::c_char;
+        memset(password_ptr as *mut libc::c_void, 0 as libc::c_int, size);
+        munmap(password_ptr as *mut libc::c_void, size);
+        password_ptr = 0 as *mut libc::c_char;
     }
     return 0 as libc::c_int;
 }
@@ -5801,77 +5801,68 @@ unsafe extern "C" fn parse_workarounds() -> libc::c_int {
     fuse_opt_free_args(&mut args);
     return res;
 }
-unsafe extern "C" fn read_password() -> libc::c_int {
+unsafe fn read_password() -> bool {
+    use rustix::mm::{self, MapFlags, ProtFlags};
+
     let mut size: libc::c_int = getpagesize();
-    let mut max_password: libc::c_int = if (1024 as libc::c_int)
-        < size - 1 as libc::c_int
+    let mut max_password = if 1024 < size - 1 
     {
-        1024 as libc::c_int
+        1024
     } else {
-        size - 1 as libc::c_int
+        size - 1
     };
-    let mut n: libc::c_int = 0;
-    sshfs
-        .password = mmap(
+
+
+    password_ptr = match mm::mmap_anonymous(
         0 as *mut libc::c_void,
-        size as size_t,
-        0x1 as libc::c_int | 0x2 as libc::c_int,
-        0x2 as libc::c_int | 0x20 as libc::c_int | 0x2000 as libc::c_int,
-        -(1 as libc::c_int),
-        0 as libc::c_int as __off64_t,
-    ) as *mut libc::c_char;
-    if sshfs.password == -(1 as libc::c_int) as *mut libc::c_void as *mut libc::c_char {
-        perror(
-            b"Failed to allocate locked page for password\0" as *const u8
-                as *const libc::c_char,
-        );
-        return -(1 as libc::c_int);
-    }
-    if mlock(sshfs.password as *const libc::c_void, size as size_t) != 0 as libc::c_int {
-        memset(
-            sshfs.password as *mut libc::c_void,
-            0 as libc::c_int,
-            size as libc::c_ulong,
-        );
-        munmap(sshfs.password as *mut libc::c_void, size as size_t);
-        sshfs.password = 0 as *mut libc::c_char;
-        perror(
-            b"Failed to allocate locked page for password\0" as *const u8
-                as *const libc::c_char,
-        );
-        return -(1 as libc::c_int);
-    }
-    n = 0 as libc::c_int;
-    while n < max_password {
-        let mut res: libc::c_int = 0;
-        res = read(
-            0 as libc::c_int,
-            &mut *(sshfs.password).offset(n as isize) as *mut libc::c_char
-                as *mut libc::c_void,
-            1 as libc::c_int as size_t,
-        ) as libc::c_int;
-        if res == -(1 as libc::c_int) {
-            perror(b"Reading password\0" as *const u8 as *const libc::c_char);
-            return -(1 as libc::c_int);
+        getpagesize() as usize,
+        ProtFlags::READ | ProtFlags::WRITE,
+        MapFlags::PRIVATE | MapFlags::LOCKED,
+    ) {
+        Ok(p) => p as *mut i8,
+        Err(e) => {
+            //TODO make sure this exactly duplicates the perror() output
+            eprintln!("Failed to allocate locked page for password: {}", e);
+            return false;
         }
-        if res == 0 as libc::c_int {
-            *(sshfs.password).offset(n as isize) = '\n' as i32 as libc::c_char;
+    };
+
+    if let Err(err) = mm::mlock(password_ptr as *mut libc::c_void, size as usize) {
+        libc::memset(password_ptr as *mut libc::c_void, 0, size as usize);
+        password_ptr = 0 as *mut libc::c_char;
+        let _ = mm::munmap(password_ptr as *mut libc::c_void, size as usize);
+        eprintln!("Failed to allocate locked page for password: {}", err);
+        return false;
+    }
+
+    let mut n = 0;
+    while n < max_password {
+        let res = libc::read(0, *(password_ptr).offset(n as isize) as *mut libc::c_void, 1);
+        if res == -1 {
+            eprintln!("Error reading password");
+            return false; 
+        }
+
+        if res == 0 {
+            *(password_ptr).offset(n as isize) = '\n' as libc::c_char;
             break;
         } else {
-            if *(sshfs.password).offset(n as isize) as libc::c_int == '\n' as i32 {
+            if *(password_ptr).offset(n as isize) == '\n' as i8 {
                 break;
             }
             n += 1;
         }
     }
+
     if n == max_password {
-        fprintf(stderr, b"Password too long\n\0" as *const u8 as *const libc::c_char);
-        return -(1 as libc::c_int);
+        eprintln!("Password too long");
+        return false;
     }
-    *(sshfs.password)
-        .offset((n + 1 as libc::c_int) as isize) = '\0' as i32 as libc::c_char;
+
+    *(password_ptr)
+        .offset((n + 1 as libc::c_int) as isize) = '\0' as i8;
     ssh_add_arg_rust("-oNumberOfPasswordPrompts=1");
-    return 0 as libc::c_int;
+    true
 }
 
 fn set_ssh_command_rust(cmd: &str) {
@@ -6180,8 +6171,8 @@ unsafe fn main_0(
         exit(1);
     }
     if global_settings.password_stdin {
-        res = read_password();
-        if res == -1  {
+        let pw_result = read_password();
+        if !pw_result {
             exit(1);
         }
     }

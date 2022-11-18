@@ -18,6 +18,8 @@ pub static global_lock: Mutex<()> = Mutex::new(());
 
 pub static global_cond: Condvar = Condvar::new();
 
+pub static mut password_ptr: *mut libc::c_char = std::ptr::null_mut();
+
 #[derive(Debug, Clone)]
 pub struct NewSettings {
     pub mountpoint: Option<PathBuf>,
