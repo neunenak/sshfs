@@ -463,6 +463,30 @@ pub struct stat {
     pub st_ctim: timespec,
     pub __glibc_reserved: [__syscall_slong_t; 3],
 }
+
+impl stat {
+    fn zeroed() -> Self {
+        stat {
+            st_dev: 0,
+            st_ino: 0,
+            st_nlink: 0,
+            st_mode: 0,
+            st_uid: 0,
+            st_gid: 0,
+            __pad0: 0,
+            st_rdev: 0,
+            st_size: 0,
+            st_blksize: 0,
+            st_blocks: 0,
+            st_atim: timespec { tv_sec: 0, tv_nsec: 0 },
+            st_mtim: timespec { tv_sec: 0, tv_nsec: 0 },
+            st_ctim: timespec { tv_sec: 0, tv_nsec: 0 },
+            __glibc_reserved: [0; 3],
+        }
+    }
+}
+
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct statvfs {
@@ -1825,23 +1849,7 @@ unsafe extern "C" fn buf_get_entries(
         let mut err: libc::c_int = -(1 as libc::c_int);
         let mut name: *mut libc::c_char = 0 as *mut libc::c_char;
         let mut longname: *mut libc::c_char = 0 as *mut libc::c_char;
-        let mut stbuf: stat = stat {
-            st_dev: 0,
-            st_ino: 0,
-            st_nlink: 0,
-            st_mode: 0,
-            st_uid: 0,
-            st_gid: 0,
-            __pad0: 0,
-            st_rdev: 0,
-            st_size: 0,
-            st_blksize: 0,
-            st_blocks: 0,
-            st_atim: timespec { tv_sec: 0, tv_nsec: 0 },
-            st_mtim: timespec { tv_sec: 0, tv_nsec: 0 },
-            st_ctim: timespec { tv_sec: 0, tv_nsec: 0 },
-            __glibc_reserved: [0; 3],
-        };
+        let mut stbuf: stat = stat::zeroed();
         if buf_get_string(buf, &mut name) == -(1 as libc::c_int) {
             return -(5 as libc::c_int);
         }
@@ -2808,23 +2816,7 @@ unsafe extern "C" fn sftp_detect_uid(mut conn: *mut Connection) {
         len: 0,
         size: 0,
     };
-    let mut stbuf: stat = stat {
-        st_dev: 0,
-        st_ino: 0,
-        st_nlink: 0,
-        st_mode: 0,
-        st_uid: 0,
-        st_gid: 0,
-        __pad0: 0,
-        st_rdev: 0,
-        st_size: 0,
-        st_blksize: 0,
-        st_blocks: 0,
-        st_atim: timespec { tv_sec: 0, tv_nsec: 0 },
-        st_mtim: timespec { tv_sec: 0, tv_nsec: 0 },
-        st_ctim: timespec { tv_sec: 0, tv_nsec: 0 },
-        __glibc_reserved: [0; 3],
-    };
+    let mut stbuf: stat = stat::zeroed();
     let mut iov: [iovec; 1] = [iovec {
         iov_base: 0 as *mut libc::c_void,
         iov_len: 0,
@@ -2904,23 +2896,7 @@ unsafe extern "C" fn sftp_check_root(
         len: 0,
         size: 0,
     };
-    let mut stbuf: stat = stat {
-        st_dev: 0,
-        st_ino: 0,
-        st_nlink: 0,
-        st_mode: 0,
-        st_uid: 0,
-        st_gid: 0,
-        __pad0: 0,
-        st_rdev: 0,
-        st_size: 0,
-        st_blksize: 0,
-        st_blocks: 0,
-        st_atim: timespec { tv_sec: 0, tv_nsec: 0 },
-        st_mtim: timespec { tv_sec: 0, tv_nsec: 0 },
-        st_ctim: timespec { tv_sec: 0, tv_nsec: 0 },
-        __glibc_reserved: [0; 3],
-    };
+    let mut stbuf: stat = stat::zeroed();
     let mut iov: [iovec; 1] = [iovec {
         iov_base: 0 as *mut libc::c_void,
         iov_len: 0,
@@ -3315,23 +3291,7 @@ unsafe extern "C" fn sshfs_access(
     mut path: *const libc::c_char,
     mut mask: libc::c_int,
 ) -> libc::c_int {
-    let mut stbuf: stat = stat {
-        st_dev: 0,
-        st_ino: 0,
-        st_nlink: 0,
-        st_mode: 0,
-        st_uid: 0,
-        st_gid: 0,
-        __pad0: 0,
-        st_rdev: 0,
-        st_size: 0,
-        st_blksize: 0,
-        st_blocks: 0,
-        st_atim: timespec { tv_sec: 0, tv_nsec: 0 },
-        st_mtim: timespec { tv_sec: 0, tv_nsec: 0 },
-        st_ctim: timespec { tv_sec: 0, tv_nsec: 0 },
-        __glibc_reserved: [0; 3],
-    };
+    let mut stbuf: stat = stat::zeroed();
     let mut err: libc::c_int = 0 as libc::c_int;
     if mask & 1 as libc::c_int != 0 {
         err = ((*sshfs_operations).getattr)
@@ -4309,23 +4269,7 @@ unsafe extern "C" fn sshfs_open_common(
         len: 0,
         size: 0,
     };
-    let mut stbuf: stat = stat {
-        st_dev: 0,
-        st_ino: 0,
-        st_nlink: 0,
-        st_mode: 0,
-        st_uid: 0,
-        st_gid: 0,
-        __pad0: 0,
-        st_rdev: 0,
-        st_size: 0,
-        st_blksize: 0,
-        st_blocks: 0,
-        st_atim: timespec { tv_sec: 0, tv_nsec: 0 },
-        st_mtim: timespec { tv_sec: 0, tv_nsec: 0 },
-        st_ctim: timespec { tv_sec: 0, tv_nsec: 0 },
-        __glibc_reserved: [0; 3],
-    };
+    let mut stbuf: stat = stat::zeroed();
     let mut sf: *mut sshfs_file = 0 as *mut sshfs_file;
     let mut open_req: *mut Request = 0 as *mut Request;
     let mut ce: *mut conntab_entry = 0 as *mut conntab_entry;
@@ -5403,23 +5347,7 @@ unsafe extern "C" fn sshfs_truncate_workaround(
     if size == 0 as libc::c_int as libc::c_long {
         return sshfs_truncate_zero(path)
     } else {
-        let mut stbuf: stat = stat {
-            st_dev: 0,
-            st_ino: 0,
-            st_nlink: 0,
-            st_mode: 0,
-            st_uid: 0,
-            st_gid: 0,
-            __pad0: 0,
-            st_rdev: 0,
-            st_size: 0,
-            st_blksize: 0,
-            st_blocks: 0,
-            st_atim: timespec { tv_sec: 0, tv_nsec: 0 },
-            st_mtim: timespec { tv_sec: 0, tv_nsec: 0 },
-            st_ctim: timespec { tv_sec: 0, tv_nsec: 0 },
-            __glibc_reserved: [0; 3],
-        };
+        let mut stbuf: stat = stat::zeroed();
         let mut err: libc::c_int = 0;
         err = sshfs_getattr(path, &mut stbuf, fi);
         if err != 0 {
