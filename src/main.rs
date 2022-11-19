@@ -6108,6 +6108,9 @@ unsafe fn main_0(
         global_settings.foreground = true;
     }
     if global_settings.buflimit_workaround  {
+        /* Work around buggy sftp-server in OpenSSH.  Without this on
+           a slow server a 10Mbyte buffer would fill up and the server
+           would abort */
         sshfs.max_outstanding_len = 8388608 as libc::c_int as libc::c_uint;
     } else {
         sshfs.max_outstanding_len = !(0 as libc::c_int) as libc::c_uint;
