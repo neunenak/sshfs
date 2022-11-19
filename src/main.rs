@@ -2157,11 +2157,6 @@ unsafe fn start_ssh(mut conn: *mut Connection) -> libc::c_int {
     close(sockpair[1 as libc::c_int as usize]);
     return 0 as libc::c_int;
 }
-unsafe extern "C" fn connect_passive(mut conn: *mut Connection) -> libc::c_int {
-    (*conn).rfd = 0 as libc::c_int;
-    (*conn).wfd = 1 as libc::c_int;
-    return 0 as libc::c_int;
-}
 unsafe fn connect_to(
     mut conn: *mut Connection,
     host: &str,
@@ -2972,30 +2967,6 @@ unsafe extern "C" fn sftp_check_root(
     buf_free(&mut buf);
     return err;
 }
-unsafe fn connect_remote(mut conn: *mut Connection) -> Result<(), ()> {
-    let mut err = match (global_settings.passive, global_settings.directport.as_ref()) {
-        (true, _) => connect_passive(conn),
-        (false, Some(ref port)) => {
-            let port_cstring = CString::new(port.to_string().into_bytes()).unwrap();
-            connect_to(conn, global_settings.host.as_ref().unwrap(), port_cstring.as_ptr())
-        },
-        _ => {
-            start_ssh(conn)
-        }
-    };
-
-    if err == 0 {
-        err = sftp_init(conn);
-    };
-
-    if err == 0 {
-        counters.num_connect = (counters.num_connect).wrapping_add(1);
-        Ok(())
-    } else {
-        close_conn(conn);
-        Err(())
-    }
-}
 
 unsafe fn start_processing_thread(mut conn: *mut Connection) -> libc::c_int {
     let mut oldset: sigset_t = sigset_t { __val: [0; 16] };
@@ -3004,7 +2975,7 @@ unsafe fn start_processing_thread(mut conn: *mut Connection) -> libc::c_int {
         return 0;
     }
     if (*conn).rfd == -(1 as libc::c_int) {
-        if connect_remote(conn).is_err() {
+        if ssh::connect_remote(conn).is_err() {
             return -libc::EIO;
         }
     }

@@ -1,10 +1,15 @@
 use crate::global_settings;
 use crate::sshfs;
-use crate::{connect_remote, sftp_check_root};
+use crate::statics::counters;
+use crate::{close_conn, connect_to, sftp_check_root, sftp_init, start_ssh, Connection};
 use libc::{signal, SIGPIPE, SIG_IGN};
 use std::ffi::CString;
 
-pub unsafe fn ssh_connect(max_conns: u32, no_check_root: bool, delay_connect: bool) -> Result<(), ()> {
+pub unsafe fn ssh_connect(
+    max_conns: u32,
+    no_check_root: bool,
+    delay_connect: bool,
+) -> Result<(), ()> {
     processing_init(max_conns)?;
 
     if !delay_connect {
@@ -57,4 +62,37 @@ unsafe fn processing_init(max_conns: u32) -> Result<(), ()> {
         }
     }
     Ok(())
+}
+
+pub unsafe fn connect_remote(mut conn: *mut Connection) -> Result<(), ()> {
+    let mut err = match (global_settings.passive, global_settings.directport.as_ref()) {
+        (true, _) => connect_passive(conn),
+        (false, Some(ref port)) => {
+            let port_cstring = CString::new(port.to_string().into_bytes()).unwrap();
+            connect_to(
+                conn,
+                global_settings.host.as_ref().unwrap(),
+                port_cstring.as_ptr(),
+            )
+        }
+        _ => start_ssh(conn),
+    };
+
+    if err == 0 {
+        err = sftp_init(conn);
+    };
+
+    if err == 0 {
+        counters.num_connect = (counters.num_connect).wrapping_add(1);
+        Ok(())
+    } else {
+        close_conn(conn);
+        Err(())
+    }
+}
+
+unsafe fn connect_passive(mut conn: *mut Connection) -> libc::c_int {
+    (*conn).rfd = 0 as libc::c_int;
+    (*conn).wfd = 1 as libc::c_int;
+    return 0 as libc::c_int;
 }
