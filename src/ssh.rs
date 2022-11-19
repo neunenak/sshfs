@@ -9,9 +9,7 @@ pub unsafe fn ssh_connect(max_conns: u32, no_check_root: bool, delay_connect: bo
 
     if !delay_connect {
         let connection = &mut crate::statics::global_connections[0];
-        if connect_remote(connection) == -(1 as libc::c_int) {
-            return Err(());
-        }
+        connect_remote(connection)?;
 
         let base_path_cstring = CString::new(
             global_settings
