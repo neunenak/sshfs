@@ -18,4 +18,4 @@ clap = { version = "4.0.19", features = ["string"] }
 nix = "0.25.0"
 rand = "0.8.5"
 time = "0.3.17"
-rustix = { version = "0.36.1", features = ["mm"] }
+rustix = { version = "0.36.1", features = ["mm", "io_uring"] }
