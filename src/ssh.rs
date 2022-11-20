@@ -66,7 +66,11 @@ unsafe fn processing_init(max_conns: u32) -> Result<(), ()> {
 
 pub unsafe fn connect_remote(mut conn: *mut Connection) -> Result<(), ()> {
     let mut err = match (global_settings.passive, global_settings.directport.as_ref()) {
-        (true, _) => connect_passive(conn),
+        (true, _) => {
+            (*conn).rfd = libc::STDIN_FILENO;
+            (*conn).wfd = libc::STDOUT_FILENO;
+            0
+        },
         (false, Some(ref port)) => {
             let port_cstring = CString::new(port.to_string().into_bytes()).unwrap();
             connect_to(
@@ -89,10 +93,4 @@ pub unsafe fn connect_remote(mut conn: *mut Connection) -> Result<(), ()> {
         close_conn(conn);
         Err(())
     }
-}
-
-unsafe fn connect_passive(mut conn: *mut Connection) -> libc::c_int {
-    (*conn).rfd = 0 as libc::c_int;
-    (*conn).wfd = 1 as libc::c_int;
-    return 0 as libc::c_int;
 }
