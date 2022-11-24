@@ -963,7 +963,7 @@ pub struct Connection {
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct buffer {
+pub struct Buffer {
     pub p: *mut u8,
     pub len: size_t,
     pub size: size_t,
@@ -971,7 +971,7 @@ pub struct buffer {
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct dir_handle {
-    pub buf: buffer,
+    pub buf: Buffer,
     pub conn: *mut Connection,
 }
 #[derive(Copy, Clone)]
@@ -988,7 +988,7 @@ pub struct Request {
     pub id: u32,
     pub replied: libc::c_int,
     pub error: libc::c_int,
-    pub reply: buffer,
+    pub reply: Buffer,
     pub start: timeval,
     pub data: *mut libc::c_void,
     pub end_func: request_func,
@@ -1007,7 +1007,7 @@ pub struct sshfs_io {
 pub struct read_req {
     pub sio: *mut sshfs_io,
     pub list: list_head,
-    pub data: buffer,
+    pub data: Buffer,
     pub size: size_t,
     pub res: ssize_t,
 }
@@ -1020,7 +1020,7 @@ pub struct read_chunk {
     pub sio: sshfs_io,
 }
 pub struct sshfs_file {
-    pub handle: buffer,
+    pub handle: Buffer,
     pub write_reqs: list_head,
     pub write_finished: Condvar,
     pub write_error: libc::c_int,
@@ -1420,7 +1420,7 @@ unsafe extern "C" fn list_empty(mut head: *const list_head) -> libc::c_int {
     return ((*head).next == head as *mut list_head) as libc::c_int;
 }
 #[inline]
-unsafe extern "C" fn buf_init(mut buf: *mut buffer, mut size: size_t) {
+unsafe extern "C" fn buf_init(mut buf: *mut Buffer, mut size: size_t) {
     if size != 0 {
         let ref mut fresh8 = (*buf).p;
         *fresh8 = malloc(size) as *mut u8;
@@ -1436,19 +1436,19 @@ unsafe extern "C" fn buf_init(mut buf: *mut buffer, mut size: size_t) {
     (*buf).size = size;
 }
 #[inline]
-unsafe extern "C" fn buf_free(mut buf: *mut buffer) {
+unsafe extern "C" fn buf_free(mut buf: *mut Buffer) {
     free((*buf).p as *mut libc::c_void);
 }
 #[inline]
-unsafe extern "C" fn buf_finish(mut buf: *mut buffer) {
+unsafe extern "C" fn buf_finish(mut buf: *mut Buffer) {
     (*buf).len = (*buf).size;
 }
 #[inline]
-unsafe extern "C" fn buf_clear(mut buf: *mut buffer) {
+unsafe extern "C" fn buf_clear(mut buf: *mut Buffer) {
     buf_free(buf);
     buf_init(buf, 0 as libc::c_int as size_t);
 }
-unsafe extern "C" fn buf_resize(mut buf: *mut buffer, mut len: size_t) {
+unsafe extern "C" fn buf_resize(mut buf: *mut Buffer, mut len: size_t) {
     (*buf)
         .size = ((*buf).len)
         .wrapping_add(len)
@@ -1465,14 +1465,14 @@ unsafe extern "C" fn buf_resize(mut buf: *mut buffer, mut len: size_t) {
     }
 }
 #[inline]
-unsafe extern "C" fn buf_check_add(mut buf: *mut buffer, mut len: size_t) {
+unsafe extern "C" fn buf_check_add(mut buf: *mut Buffer, mut len: size_t) {
     if ((*buf).len).wrapping_add(len) > (*buf).size {
         buf_resize(buf, len);
     }
 }
 #[inline]
 unsafe extern "C" fn buf_add_mem(
-    mut buf: *mut buffer,
+    mut buf: *mut Buffer,
     mut data: *const libc::c_void,
     mut len: size_t,
 ) {
@@ -1482,7 +1482,7 @@ unsafe extern "C" fn buf_add_mem(
     *fresh11 = (*fresh11 as libc::c_ulong).wrapping_add(len) as size_t as size_t;
 }
 #[inline]
-unsafe extern "C" fn buf_add_buf(mut buf: *mut buffer, mut bufa: *const buffer) {
+unsafe extern "C" fn buf_add_buf(mut buf: *mut Buffer, mut bufa: *const Buffer) {
     buf_check_add(buf, (*bufa).len);
     memcpy(
         ((*buf).p).offset((*buf).len as isize) as *mut libc::c_void,
@@ -1493,7 +1493,7 @@ unsafe extern "C" fn buf_add_buf(mut buf: *mut buffer, mut bufa: *const buffer) 
     *fresh12 = (*fresh12 as libc::c_ulong).wrapping_add((*bufa).len) as size_t as size_t;
 }
 #[inline]
-unsafe extern "C" fn buf_add_uint8(mut buf: *mut buffer, mut val: u8) {
+unsafe extern "C" fn buf_add_uint8(mut buf: *mut Buffer, mut val: u8) {
     buf_check_add(buf, 1 as libc::c_int as size_t);
     memcpy(
         ((*buf).p).offset((*buf).len as isize) as *mut libc::c_void,
@@ -1505,7 +1505,7 @@ unsafe extern "C" fn buf_add_uint8(mut buf: *mut buffer, mut val: u8) {
         .wrapping_add(1 as libc::c_int as libc::c_ulong) as size_t as size_t;
 }
 #[inline]
-unsafe extern "C" fn buf_add_uint32(mut buf: *mut buffer, mut val: u32) {
+unsafe extern "C" fn buf_add_uint32(mut buf: *mut Buffer, mut val: u32) {
     let mut nval: u32 = __bswap_32(val);
     buf_check_add(buf, 4 as libc::c_int as size_t);
     memcpy(
@@ -1518,18 +1518,18 @@ unsafe extern "C" fn buf_add_uint32(mut buf: *mut buffer, mut val: u32) {
         .wrapping_add(4 as libc::c_int as libc::c_ulong) as size_t as size_t;
 }
 #[inline]
-unsafe extern "C" fn buf_add_uint64(mut buf: *mut buffer, mut val: u64) {
+unsafe extern "C" fn buf_add_uint64(mut buf: *mut Buffer, mut val: u64) {
     buf_add_uint32(buf, (val >> 32 as libc::c_int) as u32);
     buf_add_uint32(buf, (val & 0xffffffff as libc::c_uint as libc::c_ulong) as u32);
 }
 #[inline]
-unsafe extern "C" fn buf_add_data(mut buf: *mut buffer, mut data: *const buffer) {
+unsafe extern "C" fn buf_add_data(mut buf: *mut Buffer, mut data: *const Buffer) {
     buf_add_uint32(buf, (*data).len as u32);
     buf_add_mem(buf, (*data).p as *const libc::c_void, (*data).len);
 }
 #[inline]
-unsafe extern "C" fn buf_add_string(mut buf: *mut buffer, mut str: *const libc::c_char) {
-    let mut data: buffer = buffer {
+unsafe extern "C" fn buf_add_string(mut buf: *mut Buffer, mut str: *const libc::c_char) {
+    let mut data: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -1539,7 +1539,7 @@ unsafe extern "C" fn buf_add_string(mut buf: *mut buffer, mut str: *const libc::
     buf_add_data(buf, &mut data);
 }
 #[inline]
-unsafe extern "C" fn buf_add_path(mut buf: *mut buffer, mut path: *const libc::c_char) {
+unsafe extern "C" fn buf_add_path(mut buf: *mut Buffer, mut path: *const libc::c_char) {
     let mut realpath_0: *mut libc::c_char = 0 as *mut libc::c_char;
 
     let base_path_cstring = CString::new(global_settings.base_path.as_ref().unwrap().to_string().into_bytes()).unwrap();
@@ -1577,7 +1577,7 @@ unsafe extern "C" fn buf_add_path(mut buf: *mut buffer, mut path: *const libc::c
     g_free(realpath_0 as gpointer);
 }
 unsafe extern "C" fn buf_check_get(
-    mut buf: *mut buffer,
+    mut buf: *mut Buffer,
     mut len: size_t,
 ) -> libc::c_int {
     if ((*buf).len).wrapping_add(len) > (*buf).size {
@@ -1589,7 +1589,7 @@ unsafe extern "C" fn buf_check_get(
 }
 #[inline]
 unsafe extern "C" fn buf_get_mem(
-    mut buf: *mut buffer,
+    mut buf: *mut Buffer,
     mut data: *mut libc::c_void,
     mut len: size_t,
 ) -> libc::c_int {
@@ -1603,14 +1603,14 @@ unsafe extern "C" fn buf_get_mem(
 }
 #[inline]
 unsafe extern "C" fn buf_get_uint8(
-    mut buf: *mut buffer,
+    mut buf: *mut Buffer,
     mut val: *mut u8,
 ) -> libc::c_int {
     return buf_get_mem(buf, val as *mut libc::c_void, 1 as libc::c_int as size_t);
 }
 #[inline]
 unsafe extern "C" fn buf_get_uint32(
-    mut buf: *mut buffer,
+    mut buf: *mut Buffer,
     mut val: *mut u32,
 ) -> libc::c_int {
     let mut nval: u32 = 0;
@@ -1627,7 +1627,7 @@ unsafe extern "C" fn buf_get_uint32(
 }
 #[inline]
 unsafe extern "C" fn buf_get_uint64(
-    mut buf: *mut buffer,
+    mut buf: *mut Buffer,
     mut val: *mut u64,
 ) -> libc::c_int {
     let mut val1: u32 = 0;
@@ -1642,8 +1642,8 @@ unsafe extern "C" fn buf_get_uint64(
 }
 #[inline]
 unsafe extern "C" fn buf_get_data(
-    mut buf: *mut buffer,
-    mut data: *mut buffer,
+    mut buf: *mut Buffer,
+    mut data: *mut Buffer,
 ) -> libc::c_int {
     let mut len: u32 = 0;
     if buf_get_uint32(buf, &mut len) == -(1 as libc::c_int)
@@ -1663,10 +1663,10 @@ unsafe extern "C" fn buf_get_data(
 }
 #[inline]
 unsafe extern "C" fn buf_get_string(
-    mut buf: *mut buffer,
+    mut buf: *mut Buffer,
     mut str: *mut *mut libc::c_char,
 ) -> libc::c_int {
-    let mut data: buffer = buffer {
+    let mut data: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -1679,7 +1679,7 @@ unsafe extern "C" fn buf_get_string(
     return 0 as libc::c_int;
 }
 unsafe extern "C" fn buf_get_attrs(
-    mut buf: *mut buffer,
+    mut buf: *mut Buffer,
     mut stbuf: *mut stat,
     mut flagsp: *mut libc::c_int,
 ) -> libc::c_int {
@@ -1728,7 +1728,7 @@ unsafe extern "C" fn buf_get_attrs(
         }
         i = 0 as libc::c_int as libc::c_uint;
         while i < extcount {
-            let mut tmp: buffer = buffer {
+            let mut tmp: Buffer = Buffer {
                 p: 0 as *mut u8,
                 len: 0,
                 size: 0,
@@ -1790,7 +1790,7 @@ unsafe extern "C" fn buf_get_attrs(
     return 0 as libc::c_int;
 }
 unsafe extern "C" fn buf_get_statvfs(
-    mut buf: *mut buffer,
+    mut buf: *mut Buffer,
     mut stbuf: *mut statvfs,
 ) -> libc::c_int {
     let mut bsize: u64 = 0;
@@ -1835,7 +1835,7 @@ unsafe extern "C" fn buf_get_statvfs(
     return 0 as libc::c_int;
 }
 unsafe extern "C" fn buf_get_entries(
-    mut buf: *mut buffer,
+    mut buf: *mut Buffer,
     mut dbuf: *mut libc::c_void,
     mut filler: fuse_fill_dir_t,
 ) -> libc::c_int {
@@ -2278,7 +2278,7 @@ unsafe extern "C" fn sftp_get_id() -> u32 {
     idctr = idctr.wrapping_add(1);
     return fresh19;
 }
-unsafe extern "C" fn buf_to_iov(mut buf: *const buffer, mut iov: *mut iovec) {
+unsafe extern "C" fn buf_to_iov(mut buf: *const Buffer, mut iov: *mut iovec) {
     let ref mut fresh20 = (*iov).iov_base;
     *fresh20 = (*buf).p as *mut libc::c_void;
     (*iov).iov_len = (*buf).len;
@@ -2305,7 +2305,7 @@ unsafe extern "C" fn sftp_send_iov(
     mut count: size_t,
 ) -> libc::c_int {
     let mut res: libc::c_int = 0;
-    let mut buf: buffer = buffer {
+    let mut buf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -2356,7 +2356,7 @@ unsafe extern "C" fn sftp_send_iov(
     buf_free(&mut buf);
     return res;
 }
-unsafe extern "C" fn do_read(mut conn: *mut Connection, mut buf: *mut buffer) -> libc::c_int {
+unsafe extern "C" fn do_read(mut conn: *mut Connection, mut buf: *mut Buffer) -> libc::c_int {
     let mut res: libc::c_int = 0;
     let mut p: *mut u8 = (*buf).p;
     let mut size: size_t = (*buf).size;
@@ -2380,10 +2380,10 @@ unsafe extern "C" fn do_read(mut conn: *mut Connection, mut buf: *mut buffer) ->
 unsafe extern "C" fn sftp_read(
     mut conn: *mut Connection,
     mut type_0: *mut u8,
-    mut buf: *mut buffer,
+    mut buf: *mut Buffer,
 ) -> libc::c_int {
     let mut res: libc::c_int = 0;
-    let mut buf2: buffer = buffer {
+    let mut buf2: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -2468,7 +2468,7 @@ unsafe extern "C" fn clean_req(
 }
 unsafe extern "C" fn process_one_request(mut conn: *mut Connection) -> libc::c_int {
     let mut res: libc::c_int = 0;
-    let mut buf: buffer = buffer {
+    let mut buf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -2611,7 +2611,7 @@ unsafe extern "C" fn process_requests(
 }
 unsafe extern "C" fn sftp_init_reply_ok(
     mut conn: *mut Connection,
-    mut buf: *mut buffer,
+    mut buf: *mut Buffer,
     mut version: *mut u32,
 ) -> libc::c_int {
     let mut len: u32 = 0;
@@ -2637,7 +2637,7 @@ unsafe extern "C" fn sftp_init_reply_ok(
         eprintln!("Server version: {}", *version);
     }
     if len > 5 as libc::c_int as libc::c_uint {
-        let mut buf2: buffer = buffer {
+        let mut buf2: Buffer = Buffer {
             p: 0 as *mut u8,
             len: 0,
             size: 0,
@@ -2715,7 +2715,7 @@ unsafe extern "C" fn sftp_find_init_reply(
     mut version: *mut u32,
 ) -> libc::c_int {
     let mut res: libc::c_int = 0;
-    let mut buf: buffer = buffer {
+    let mut buf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -2723,7 +2723,7 @@ unsafe extern "C" fn sftp_find_init_reply(
     buf_init(&mut buf, 9 as libc::c_int as size_t);
     res = do_read(conn, &mut buf);
     while res != -(1 as libc::c_int) {
-        let mut buf2: buffer = buffer {
+        let mut buf2: Buffer = Buffer {
             p: 0 as *mut u8,
             len: 0,
             size: 0,
@@ -2755,7 +2755,7 @@ unsafe extern "C" fn sftp_find_init_reply(
 unsafe extern "C" fn sftp_init(mut conn: *mut Connection) -> libc::c_int {
     let mut res: libc::c_int = -(1 as libc::c_int);
     let mut version: u32 = 0 as libc::c_int as u32;
-    let mut buf: buffer = buffer {
+    let mut buf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -2806,7 +2806,7 @@ unsafe extern "C" fn sftp_detect_uid(mut conn: *mut Connection) {
     let mut id: u32 = sftp_get_id();
     let mut replid: u32 = 0;
     let mut type_0: u8 = 0;
-    let mut buf: buffer = buffer {
+    let mut buf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -2886,7 +2886,7 @@ unsafe extern "C" fn sftp_check_root(
     let mut id: u32 = sftp_get_id();
     let mut replid: u32 = 0;
     let mut type_0: u8 = 0;
-    let mut buf: buffer = buffer {
+    let mut buf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -3039,7 +3039,7 @@ unsafe extern "C" fn sftp_request_wait(
     mut req: *mut Request,
     mut type_0: u8,
     mut expect_type: u8,
-    mut outbuf: *mut buffer,
+    mut outbuf: *mut Buffer,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
     if (*req).error != 0 {
@@ -3208,7 +3208,7 @@ unsafe extern "C" fn sftp_request_send(
     }
     (*req).error = err;
     if want_reply == 0 {
-        sftp_request_wait(req, type_0, 0 as libc::c_int as u8, 0 as *mut buffer);
+        sftp_request_wait(req, type_0, 0 as libc::c_int as u8, 0 as *mut Buffer);
     } else {
         *reqp = req;
     }
@@ -3220,7 +3220,7 @@ unsafe extern "C" fn sftp_request_iov(
     mut iov: *mut iovec,
     mut count: size_t,
     mut expect_type: u8,
-    mut outbuf: *mut buffer,
+    mut outbuf: *mut Buffer,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
     let mut req: *mut Request = 0 as *mut Request;
@@ -3243,9 +3243,9 @@ unsafe extern "C" fn sftp_request_iov(
 unsafe extern "C" fn sftp_request(
     mut conn: *mut Connection,
     mut type_0: u8,
-    mut buf: *const buffer,
+    mut buf: *const Buffer,
     mut expect_type: u8,
-    mut outbuf: *mut buffer,
+    mut outbuf: *mut Buffer,
 ) -> libc::c_int {
     let mut iov: iovec = iovec {
         iov_base: 0 as *mut libc::c_void,
@@ -3395,12 +3395,12 @@ unsafe extern "C" fn sshfs_readlink(
     mut size: size_t,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
-    let mut buf: buffer = buffer {
+    let mut buf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
     };
-    let mut name: buffer = buffer {
+    let mut name: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -3456,7 +3456,7 @@ unsafe extern "C" fn sshfs_readlink(
 unsafe extern "C" fn sftp_readdir_send(
     mut conn: *mut Connection,
     mut req: *mut *mut Request,
-    mut handle: *mut buffer,
+    mut handle: *mut Buffer,
 ) -> libc::c_int {
     let mut iov: iovec = iovec {
         iov_base: 0 as *mut libc::c_void,
@@ -3489,7 +3489,7 @@ unsafe extern "C" fn sshfs_req_pending(mut req: *mut Request) -> libc::c_int {
 }
 unsafe extern "C" fn sftp_readdir_async(
     mut conn: *mut Connection,
-    mut handle: *mut buffer,
+    mut handle: *mut Buffer,
     mut buf: *mut libc::c_void,
     mut offset: off_t,
     mut filler: fuse_fill_dir_t,
@@ -3515,7 +3515,7 @@ unsafe extern "C" fn sftp_readdir_async(
     }
     while done == 0 || outstanding != 0 {
         let mut req: *mut Request = 0 as *mut Request;
-        let mut name: buffer = buffer {
+        let mut name: Buffer = Buffer {
             p: 0 as *mut u8,
             len: 0,
             size: 0,
@@ -3595,7 +3595,7 @@ unsafe extern "C" fn sftp_readdir_async(
 }
 unsafe extern "C" fn sftp_readdir_sync(
     mut conn: *mut Connection,
-    mut handle: *mut buffer,
+    mut handle: *mut Buffer,
     mut buf: *mut libc::c_void,
     mut offset: off_t,
     mut filler: fuse_fill_dir_t,
@@ -3616,7 +3616,7 @@ unsafe extern "C" fn sftp_readdir_sync(
         );
     }
     loop {
-        let mut name: buffer = buffer {
+        let mut name: Buffer = Buffer {
             p: 0 as *mut u8,
             len: 0,
             size: 0,
@@ -3647,7 +3647,7 @@ unsafe extern "C" fn sshfs_opendir(
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
     let mut conn = 0 as *mut Connection;
-    let mut buf: buffer = buffer {
+    let mut buf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -3747,7 +3747,7 @@ unsafe extern "C" fn sshfs_releasedir(
         4 as libc::c_int as u8,
         &mut (*handle).buf,
         0 as libc::c_int as u8,
-        0 as *mut buffer,
+        0 as *mut Buffer,
     );
 
     {
@@ -3765,7 +3765,7 @@ unsafe extern "C" fn sshfs_mkdir(
     mut mode: mode_t,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
-    let mut buf: buffer = buffer {
+    let mut buf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -3779,7 +3779,7 @@ unsafe extern "C" fn sshfs_mkdir(
         14 as libc::c_int as u8,
         &mut buf,
         101 as libc::c_int as u8,
-        0 as *mut buffer,
+        0 as *mut Buffer,
     );
     buf_free(&mut buf);
     if err == -(1 as libc::c_int) {
@@ -3799,12 +3799,12 @@ unsafe extern "C" fn sshfs_mknod(
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
     let mut conn = 0 as *mut Connection;
-    let mut buf: buffer = buffer {
+    let mut buf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
     };
-    let mut handle: buffer = buffer {
+    let mut handle: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -3838,7 +3838,7 @@ unsafe extern "C" fn sshfs_mknod(
             4 as libc::c_int as u8,
             &mut handle,
             101 as libc::c_int as u8,
-            0 as *mut buffer,
+            0 as *mut Buffer,
         );
         if err == 0 {
             err = err2;
@@ -3853,7 +3853,7 @@ unsafe extern "C" fn sshfs_symlink(
     mut to: *const libc::c_char,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
-    let mut buf: buffer = buffer {
+    let mut buf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -3869,14 +3869,14 @@ unsafe extern "C" fn sshfs_symlink(
         20 as libc::c_int as u8,
         &mut buf,
         101 as libc::c_int as u8,
-        0 as *mut buffer,
+        0 as *mut Buffer,
     );
     buf_free(&mut buf);
     return err;
 }
 unsafe extern "C" fn sshfs_unlink(mut path: *const libc::c_char) -> libc::c_int {
     let mut err: libc::c_int = 0;
-    let mut buf: buffer = buffer {
+    let mut buf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -3888,14 +3888,14 @@ unsafe extern "C" fn sshfs_unlink(mut path: *const libc::c_char) -> libc::c_int 
         13 as libc::c_int as u8,
         &mut buf,
         101 as libc::c_int as u8,
-        0 as *mut buffer,
+        0 as *mut Buffer,
     );
     buf_free(&mut buf);
     return err;
 }
 unsafe extern "C" fn sshfs_rmdir(mut path: *const libc::c_char) -> libc::c_int {
     let mut err: libc::c_int = 0;
-    let mut buf: buffer = buffer {
+    let mut buf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -3907,7 +3907,7 @@ unsafe extern "C" fn sshfs_rmdir(mut path: *const libc::c_char) -> libc::c_int {
         15 as libc::c_int as u8,
         &mut buf,
         101 as libc::c_int as u8,
-        0 as *mut buffer,
+        0 as *mut Buffer,
     );
     buf_free(&mut buf);
     return err;
@@ -3917,7 +3917,7 @@ unsafe extern "C" fn sshfs_do_rename(
     mut to: *const libc::c_char,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
-    let mut buf: buffer = buffer {
+    let mut buf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -3930,7 +3930,7 @@ unsafe extern "C" fn sshfs_do_rename(
         18 as libc::c_int as u8,
         &mut buf,
         101 as libc::c_int as u8,
-        0 as *mut buffer,
+        0 as *mut Buffer,
     );
     buf_free(&mut buf);
     return err;
@@ -3940,7 +3940,7 @@ unsafe extern "C" fn sshfs_ext_posix_rename(
     mut to: *const libc::c_char,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
-    let mut buf: buffer = buffer {
+    let mut buf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -3957,7 +3957,7 @@ unsafe extern "C" fn sshfs_ext_posix_rename(
         200 as libc::c_int as u8,
         &mut buf,
         101 as libc::c_int as u8,
-        0 as *mut buffer,
+        0 as *mut Buffer,
     );
     buf_free(&mut buf);
     return err;
@@ -4042,7 +4042,7 @@ unsafe extern "C" fn sshfs_link(
 ) -> libc::c_int {
     let mut err: libc::c_int = -(38 as libc::c_int);
     if sshfs.ext_hardlink != 0 && !global_settings.disable_hardlink {
-        let mut buf: buffer = buffer {
+        let mut buf: Buffer = Buffer {
             p: 0 as *mut u8,
             len: 0,
             size: 0,
@@ -4059,7 +4059,7 @@ unsafe extern "C" fn sshfs_link(
             200 as libc::c_int as u8,
             &mut buf,
             101 as libc::c_int as u8,
-            0 as *mut buffer,
+            0 as *mut Buffer,
         );
         buf_free(&mut buf);
     }
@@ -4084,7 +4084,7 @@ unsafe extern "C" fn sshfs_chmod(
     mut fi: *mut fuse_file_info,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
-    let mut buf: buffer = buffer {
+    let mut buf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -4109,7 +4109,7 @@ unsafe extern "C" fn sshfs_chmod(
         (if sf.is_null() { 9 as libc::c_int } else { 10 as libc::c_int }) as u8,
         &mut buf,
         101 as libc::c_int as u8,
-        0 as *mut buffer,
+        0 as *mut Buffer,
     );
     buf_free(&mut buf);
     return err;
@@ -4121,7 +4121,7 @@ unsafe extern "C" fn sshfs_chown(
     mut fi: *mut fuse_file_info,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
-    let mut buf: buffer = buffer {
+    let mut buf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -4165,7 +4165,7 @@ unsafe extern "C" fn sshfs_chown(
         (if sf.is_null() { 9 as libc::c_int } else { 10 as libc::c_int }) as u8,
         &mut buf,
         101 as libc::c_int as u8,
-        0 as *mut buffer,
+        0 as *mut Buffer,
     );
     buf_free(&mut buf);
     return err;
@@ -4182,7 +4182,7 @@ unsafe extern "C" fn sshfs_utimens(
     mut fi: *mut fuse_file_info,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
-    let mut buf: buffer = buffer {
+    let mut buf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -4221,7 +4221,7 @@ unsafe extern "C" fn sshfs_utimens(
         (if sf.is_null() { 9 as libc::c_int } else { 10 as libc::c_int }) as u8,
         &mut buf,
         101 as libc::c_int as u8,
-        0 as *mut buffer,
+        0 as *mut Buffer,
     );
     buf_free(&mut buf);
     return err;
@@ -4233,12 +4233,12 @@ unsafe extern "C" fn sshfs_open_common(
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
     let mut err2: libc::c_int = 0;
-    let mut buf: buffer = buffer {
+    let mut buf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
     };
-    let mut outbuf: buffer = buffer {
+    let mut outbuf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -4384,7 +4384,7 @@ unsafe extern "C" fn sshfs_open_common(
             4 as libc::c_int as u8,
             &mut (*sf).handle,
             0 as libc::c_int as u8,
-            0 as *mut buffer,
+            0 as *mut Buffer,
         );
         buf_free(&mut (*sf).handle);
         err = err2;
@@ -4470,7 +4470,7 @@ unsafe extern "C" fn sshfs_fsync(
     if sshfs.ext_fsync == 0 {
         return err;
     }
-    let mut buf: buffer = buffer {
+    let mut buf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -4484,7 +4484,7 @@ unsafe extern "C" fn sshfs_fsync(
         200 as libc::c_int as u8,
         &mut buf,
         101 as libc::c_int as u8,
-        0 as *mut buffer,
+        0 as *mut Buffer,
     );
     buf_free(&mut buf);
     return err;
@@ -4494,7 +4494,7 @@ unsafe extern "C" fn sshfs_release(
     mut fi: *mut fuse_file_info,
 ) -> libc::c_int {
     let mut sf: *mut sshfs_file = get_sshfs_file(fi);
-    let mut handle: *mut buffer = &mut (*sf).handle;
+    let mut handle: *mut Buffer = &mut (*sf).handle;
     let mut ce: *mut conntab_entry = 0 as *mut conntab_entry;
     if sshfs_file_is_conn(sf) != 0 {
         sshfs_flush(path, fi);
@@ -4503,7 +4503,7 @@ unsafe extern "C" fn sshfs_release(
             4 as libc::c_int as u8,
             handle,
             0 as libc::c_int as u8,
-            0 as *mut buffer,
+            0 as *mut Buffer,
         );
     }
     buf_free(handle);
@@ -4597,14 +4597,14 @@ unsafe extern "C" fn sshfs_send_read(
         }
         __p
     }) as *mut read_chunk;
-    let mut handle: *mut buffer = &mut (*sf).handle;
+    let mut handle: *mut Buffer = &mut (*sf).handle;
     list_init(&mut (*chunk).reqs);
     (*chunk).size = size;
     (*chunk).offset = offset;
     (*chunk).refs = 1 as libc::c_int;
     while size != 0 {
         let mut err: libc::c_int = 0;
-        let mut buf: buffer = buffer {
+        let mut buf: Buffer = Buffer {
             p: 0 as *mut u8,
             len: 0,
             size: 0,
@@ -4888,9 +4888,9 @@ unsafe extern "C" fn sshfs_async_write(
     mut offset: off_t,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0 as libc::c_int;
-    let mut handle: *mut buffer = &mut (*sf).handle;
+    let mut handle: *mut Buffer = &mut (*sf).handle;
     while err == 0 && size != 0 {
-        let mut buf: buffer = buffer {
+        let mut buf: Buffer = Buffer {
             p: 0 as *mut u8,
             len: 0,
             size: 0,
@@ -4961,7 +4961,7 @@ unsafe extern "C" fn sshfs_sync_write(
     mut offset: off_t,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0 as libc::c_int;
-    let mut handle: *mut buffer = &mut (*sf).handle;
+    let mut handle: *mut Buffer = &mut (*sf).handle;
     let mut sio = sshfs_io {
         num_reqs: 0 as libc::c_int,
         finished: Condvar::new(),
@@ -4969,7 +4969,7 @@ unsafe extern "C" fn sshfs_sync_write(
     };
 
     while err == 0 && size != 0 {
-        let mut buf: buffer = buffer {
+        let mut buf: Buffer = Buffer {
             p: 0 as *mut u8,
             len: 0,
             size: 0,
@@ -5042,12 +5042,12 @@ unsafe extern "C" fn sshfs_ext_statvfs(
     mut stbuf: *mut statvfs,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
-    let mut buf: buffer = buffer {
+    let mut buf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
     };
-    let mut outbuf: buffer = buffer {
+    let mut outbuf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -5114,7 +5114,7 @@ unsafe extern "C" fn sshfs_truncate(
     mut fi: *mut fuse_file_info,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
-    let mut buf: buffer = buffer {
+    let mut buf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
@@ -5143,7 +5143,7 @@ unsafe extern "C" fn sshfs_truncate(
         (if sf.is_null() { 9 as libc::c_int } else { 10 as libc::c_int }) as u8,
         &mut buf,
         101 as libc::c_int as u8,
-        0 as *mut buffer,
+        0 as *mut Buffer,
     );
     buf_free(&mut buf);
     return err;
@@ -5154,12 +5154,12 @@ unsafe extern "C" fn sshfs_getattr(
     mut fi: *mut fuse_file_info,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
-    let mut buf: buffer = buffer {
+    let mut buf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
     };
-    let mut outbuf: buffer = buffer {
+    let mut outbuf: Buffer = Buffer {
         p: 0 as *mut u8,
         len: 0,
         size: 0,
