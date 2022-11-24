@@ -3425,7 +3425,7 @@ unsafe extern "C" fn sshfs_req_pending(mut req: *mut Request) -> libc::c_int {
         return 0 as libc::c_int
     };
 }
-unsafe extern "C" fn sftp_readdir_async(
+unsafe fn sftp_readdir_async(
     mut conn: *mut Connection,
     mut handle: *mut Buffer,
     mut buf: *mut libc::c_void,
@@ -3511,6 +3511,7 @@ unsafe extern "C" fn sftp_readdir_async(
             }
         }
     }
+    // assert list == NULL
     if list.is_null() {} else {
         __assert_fail(
             b"list == NULL\0" as *const u8 as *const libc::c_char,
@@ -3527,6 +3528,8 @@ unsafe extern "C" fn sftp_readdir_async(
     }
     return err;
 }
+
+
 unsafe extern "C" fn sftp_readdir_sync(
     mut conn: *mut Connection,
     mut handle: *mut Buffer,
