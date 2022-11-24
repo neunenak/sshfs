@@ -20,7 +20,7 @@ pub static global_cond: Condvar = Condvar::new();
 
 pub static mut password_ptr: *mut libc::c_char = std::ptr::null_mut();
 
-pub static mut ptyfd: libc::c_int = 0;
+pub static mut ptyfd: Option<libc::c_int> = None;
 
 #[derive(Debug, Clone)]
 pub struct NewSettings {

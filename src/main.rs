@@ -1905,7 +1905,7 @@ unsafe fn pty_expect_loop(mut conn: *mut Connection) -> libc::c_int {
         }; 2];
         fds[0 as libc::c_int as usize].fd = (*conn).rfd;
         fds[0 as libc::c_int as usize].events = 0x1 as libc::c_int as libc::c_short;
-        fds[1 as libc::c_int as usize].fd = ptyfd;
+        fds[1 as libc::c_int as usize].fd = ptyfd.unwrap();
         fds[1 as libc::c_int as usize].events = 0x1 as libc::c_int as libc::c_short;
         res = poll(fds.as_mut_ptr(), 2 as libc::c_int as nfds_t, timeout);
         if res == -(1 as libc::c_int) {
@@ -1920,7 +1920,7 @@ unsafe fn pty_expect_loop(mut conn: *mut Connection) -> libc::c_int {
             break;
         }
         res = read(
-            ptyfd,
+            ptyfd.unwrap(),
             &mut c as *mut libc::c_char as *mut libc::c_void,
             1 as libc::c_int as size_t,
         ) as libc::c_int;
@@ -1942,7 +1942,7 @@ unsafe fn pty_expect_loop(mut conn: *mut Connection) -> libc::c_int {
             ) == 0 as libc::c_int
             {
                 write(
-                    ptyfd,
+                    ptyfd.unwrap(),
                     password_ptr as *const libc::c_void,
                     strlen(password_ptr),
                 );
@@ -2018,7 +2018,7 @@ unsafe extern "C" fn get_conn(
     return &mut global_connections[best_index] as *mut Connection;
 }
 
-unsafe fn pty_master(mut name: *mut *mut libc::c_char) -> libc::c_int {
+unsafe fn pty_master(mut name: *mut *mut libc::c_char) -> Option<libc::c_int> {
     let mut mfd: libc::c_int = 0;
     mfd = open(
         b"/dev/ptmx\0" as *const u8 as *const libc::c_char,
@@ -2026,18 +2026,18 @@ unsafe fn pty_master(mut name: *mut *mut libc::c_char) -> libc::c_int {
     );
     if mfd == -(1 as libc::c_int) {
         perror(b"failed to open pty\0" as *const u8 as *const libc::c_char);
-        return -(1 as libc::c_int);
+        return None;
     }
     if grantpt(mfd) != 0 as libc::c_int {
         perror(b"grantpt\0" as *const u8 as *const libc::c_char);
-        return -(1 as libc::c_int);
+        return None;
     }
     if unlockpt(mfd) != 0 as libc::c_int {
         perror(b"unlockpt\0" as *const u8 as *const libc::c_char);
-        return -(1 as libc::c_int);
+        return None;
     }
     *name = ptsname(mfd);
-    return mfd;
+    Some(mfd)
 }
 unsafe extern "C" fn replace_arg(
     mut argp: *mut *mut libc::c_char,
@@ -2059,7 +2059,7 @@ unsafe fn start_ssh(mut conn: *mut Connection) -> libc::c_int {
     let mut pid: libc::c_int = 0;
     if global_settings.password_stdin {
         ptyfd = pty_master(&mut ptyname);
-        if ptyfd == -1 {
+        if ptyfd.is_none() {
             return -1;
         }
         sshfs.ptypassivefd = open(ptyname, 0o2 as libc::c_int | 0o400 as libc::c_int);
@@ -2132,7 +2132,7 @@ unsafe fn start_ssh(mut conn: *mut Connection) -> libc::c_int {
                 }
                 close(sfd);
                 close(sshfs.ptypassivefd);
-                close(ptyfd);
+                close(ptyfd.unwrap());
             }
             if global_settings.debug {
                 eprintln!("From rust!");
@@ -2556,9 +2556,9 @@ unsafe extern "C" fn close_conn(mut conn: *mut Connection) {
     }
     (*conn).rfd = -(1 as libc::c_int);
     (*conn).wfd = -(1 as libc::c_int);
-    if ptyfd != -1 {
-        close(ptyfd);
-        ptyfd = -1;
+    if let Some(fd) = ptyfd {
+        close(fd);
+        ptyfd = None;
     }
     if sshfs.ptypassivefd != -(1 as libc::c_int) {
         close(sshfs.ptypassivefd);
