@@ -1113,17 +1113,12 @@ pub struct sshfs {
     pub total_rtt: u64,
     pub num_connect: libc::c_uint,
 }
-pub type C2RustUnnamed_2 = libc::c_uint;
-pub const KEY_CONFIGFILE: C2RustUnnamed_2 = 2;
-pub const KEY_COMPRESS: C2RustUnnamed_2 = 1;
-pub const KEY_PORT: C2RustUnnamed_2 = 0;
+
 pub type C2RustUnnamed_3 = libc::c_uint;
 pub const IDMAP_FILE: C2RustUnnamed_3 = 2;
 pub const IDMAP_USER: C2RustUnnamed_3 = 1;
 pub const IDMAP_NONE: C2RustUnnamed_3 = 0;
-pub type C2RustUnnamed_4 = libc::c_uint;
-pub const NOMAP_ERROR: C2RustUnnamed_4 = 1;
-pub const NOMAP_IGNORE: C2RustUnnamed_4 = 0;
+
 #[inline]
 unsafe extern "C" fn __bswap_32(mut __bsx: u32) -> u32 {
     return (__bsx & 0xff000000 as libc::c_uint) >> 24 as libc::c_int

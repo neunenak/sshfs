@@ -1,4 +1,3 @@
-use crate::{IDMAP_FILE, IDMAP_USER, NOMAP_ERROR, NOMAP_IGNORE};
 use libfuse_sys::fuse::fuse_opt;
 
 // This is the `show_version` offset
