@@ -9,11 +9,11 @@ use crate::options::NoMap;
 use std::sync::Mutex;
 
 lazy_static::lazy_static! {
-    static ref UID_MAP: Mutex<Option<HashMap<u32, u32>>> = Mutex::new(None);
-    static ref REVERSE_UID_MAP: Mutex<Option<HashMap<u32, u32>>> = Mutex::new(None);
+    static ref UID_MAP: Mutex<HashMap<u32, u32>> = Mutex::new(HashMap::new());
+    static ref REVERSE_UID_MAP: Mutex<HashMap<u32, u32>> = Mutex::new(HashMap::new());
 
-    static ref GID_MAP: Mutex<Option<HashMap<u32, u32>>> = Mutex::new(None);
-    static ref REVERSE_GID_MAP: Mutex<Option<HashMap<u32, u32>>> = Mutex::new(None);
+    static ref GID_MAP: Mutex<HashMap<u32, u32>> = Mutex::new(HashMap::new());
+    static ref REVERSE_GID_MAP: Mutex<HashMap<u32, u32>> = Mutex::new(HashMap::new());
 }
 
 enum IdType {
@@ -39,11 +39,6 @@ pub fn translate_id(id_ptr: *mut u32, operation: &str, nomap: NoMap) -> c_int {
             eprintln!("internal error");
             std::process::exit(1);
         }
-    };
-
-    let table = match table.as_ref() {
-        Some(table) => table,
-        None => return 0,
     };
 
     let map_behavior = match nomap {
@@ -76,20 +71,20 @@ pub extern "C" fn handle_id_maps(uid_file_path: Option<&String>, gid_file_path: 
     if let Some(file_path) = uid_file_path {
         let (um, rum) = read_id_map(file_path, IdType::Uid);
         let mut mtx = UID_MAP.lock().unwrap();
-        *mtx = Some(um);
+        *mtx = um;
 
         let mut mtx = REVERSE_UID_MAP.lock().unwrap();
-        *mtx = Some(rum);
+        *mtx = rum;
     }
 
     if let Some(file_path) = gid_file_path {
         let (gm, rgm) = read_id_map(file_path, IdType::Gid);
 
         let mut mtx = GID_MAP.lock().unwrap();
-        *mtx = Some(gm);
+        *mtx = gm;
 
         let mut mtx = REVERSE_GID_MAP.lock().unwrap();
-        *mtx = Some(rgm);
+        *mtx = rgm;
     }
 }
 

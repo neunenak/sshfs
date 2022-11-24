@@ -4339,12 +4339,14 @@ unsafe extern "C" fn sshfs_flush(
     mut _path: *const libc::c_char,
     mut fi: *mut fuse_file_info,
 ) -> libc::c_int {
+
     let mut err: libc::c_int = 0;
     let mut sf: *mut sshfs_file = get_sshfs_file(fi);
     let mut write_reqs: list_head = list_head {
         prev: 0 as *mut list_head,
         next: 0 as *mut list_head,
     };
+
     let mut curr_list: *mut list_head = 0 as *mut list_head;
     if sshfs_file_is_conn(sf) == 0 {
         return -(5 as libc::c_int);
@@ -4366,10 +4368,11 @@ unsafe extern "C" fn sshfs_flush(
             let _lock = write_finished.wait_while(lock, |_| list_empty(&mut write_reqs) == 0);
         }
         err = (*sf).write_error;
-        (*sf).write_error = 0 as libc::c_int;
+        (*sf).write_error = 0;
     }
     return err;
 }
+
 unsafe extern "C" fn sshfs_fsync(
     mut path: *const libc::c_char,
     mut _isdatasync: libc::c_int,
