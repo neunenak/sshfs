@@ -20,6 +20,8 @@ pub static global_cond: Condvar = Condvar::new();
 
 pub static mut password_ptr: *mut libc::c_char = std::ptr::null_mut();
 
+pub static mut ptyfd: libc::c_int = 0;
+
 #[derive(Debug, Clone)]
 pub struct NewSettings {
     pub mountpoint: Option<PathBuf>,

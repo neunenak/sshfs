@@ -21,7 +21,7 @@ use std::path::{PathBuf, Path};
 use options::{IdMap, SshFSOption, Workaround};
 use std::sync::{Condvar, Mutex};
 
-use statics::{global_lock, password_ptr, global_cond, NewSettings, global_settings, counters, sshfs_operations, global_connections};
+use statics::{ptyfd, global_lock, password_ptr, global_cond, NewSettings, global_settings, counters, sshfs_operations, global_connections};
 
 const IDMAP_DEFAULT: IdMap = if cfg!(target_os = "macos") {
     IdMap::User
@@ -1905,7 +1905,7 @@ unsafe fn pty_expect_loop(mut conn: *mut Connection) -> libc::c_int {
         }; 2];
         fds[0 as libc::c_int as usize].fd = (*conn).rfd;
         fds[0 as libc::c_int as usize].events = 0x1 as libc::c_int as libc::c_short;
-        fds[1 as libc::c_int as usize].fd = sshfs.ptyfd;
+        fds[1 as libc::c_int as usize].fd = ptyfd;
         fds[1 as libc::c_int as usize].events = 0x1 as libc::c_int as libc::c_short;
         res = poll(fds.as_mut_ptr(), 2 as libc::c_int as nfds_t, timeout);
         if res == -(1 as libc::c_int) {
@@ -1920,7 +1920,7 @@ unsafe fn pty_expect_loop(mut conn: *mut Connection) -> libc::c_int {
             break;
         }
         res = read(
-            sshfs.ptyfd,
+            ptyfd,
             &mut c as *mut libc::c_char as *mut libc::c_void,
             1 as libc::c_int as size_t,
         ) as libc::c_int;
@@ -1942,7 +1942,7 @@ unsafe fn pty_expect_loop(mut conn: *mut Connection) -> libc::c_int {
             ) == 0 as libc::c_int
             {
                 write(
-                    sshfs.ptyfd,
+                    ptyfd,
                     password_ptr as *const libc::c_void,
                     strlen(password_ptr),
                 );
@@ -2018,7 +2018,7 @@ unsafe extern "C" fn get_conn(
     return &mut global_connections[best_index] as *mut Connection;
 }
 
-unsafe extern "C" fn pty_master(mut name: *mut *mut libc::c_char) -> libc::c_int {
+unsafe fn pty_master(mut name: *mut *mut libc::c_char) -> libc::c_int {
     let mut mfd: libc::c_int = 0;
     mfd = open(
         b"/dev/ptmx\0" as *const u8 as *const libc::c_char,
@@ -2058,9 +2058,9 @@ unsafe fn start_ssh(mut conn: *mut Connection) -> libc::c_int {
     let mut sockpair: [libc::c_int; 2] = [0; 2];
     let mut pid: libc::c_int = 0;
     if global_settings.password_stdin {
-        sshfs.ptyfd = pty_master(&mut ptyname);
-        if sshfs.ptyfd == -(1 as libc::c_int) {
-            return -(1 as libc::c_int);
+        ptyfd = pty_master(&mut ptyname);
+        if ptyfd == -1 {
+            return -1;
         }
         sshfs.ptypassivefd = open(ptyname, 0o2 as libc::c_int | 0o400 as libc::c_int);
         if sshfs.ptypassivefd == -(1 as libc::c_int) {
@@ -2132,7 +2132,7 @@ unsafe fn start_ssh(mut conn: *mut Connection) -> libc::c_int {
                 }
                 close(sfd);
                 close(sshfs.ptypassivefd);
-                close(sshfs.ptyfd);
+                close(ptyfd);
             }
             if global_settings.debug {
                 eprintln!("From rust!");
@@ -2556,9 +2556,9 @@ unsafe extern "C" fn close_conn(mut conn: *mut Connection) {
     }
     (*conn).rfd = -(1 as libc::c_int);
     (*conn).wfd = -(1 as libc::c_int);
-    if sshfs.ptyfd != -(1 as libc::c_int) {
-        close(sshfs.ptyfd);
-        sshfs.ptyfd = -(1 as libc::c_int);
+    if ptyfd != -1 {
+        close(ptyfd);
+        ptyfd = -1;
     }
     if sshfs.ptypassivefd != -(1 as libc::c_int) {
         close(sshfs.ptypassivefd);
