@@ -1391,9 +1391,9 @@ unsafe extern "C" fn buf_finish(mut buf: *mut Buffer) {
     (*buf).len = (*buf).size;
 }
 #[inline]
-unsafe extern "C" fn buf_clear(mut buf: *mut Buffer) {
-    buf_free(buf);
-    buf_init(buf, 0 as libc::c_int as size_t);
+unsafe extern "C" fn buf_clear(mut buf: &mut Buffer) {
+    buf.free();
+    buf.init(0);
 }
 unsafe extern "C" fn buf_resize(mut buf: *mut Buffer, mut len: size_t) {
     (*buf)
