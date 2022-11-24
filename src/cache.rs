@@ -646,7 +646,7 @@ unsafe extern "C" fn free_node(mut node_: gpointer) {
     g_free(node as gpointer);
 }
 unsafe extern "C" fn cache_clean_entry(
-    mut key_: *mut libc::c_void,
+    mut _key_: *mut libc::c_void,
     mut node: *mut node,
     mut now: *mut time_t,
 ) -> libc::c_int {
@@ -732,7 +732,7 @@ unsafe extern "C" fn cache_invalidate_dir(mut path: *const libc::c_char) {
 }
 unsafe extern "C" fn cache_del_children(
     mut key: *const libc::c_char,
-    mut val_: *mut libc::c_void,
+    mut _val_: *mut libc::c_void,
     mut path: *const libc::c_char,
 ) -> libc::c_int {
     if strncmp(key, path, strlen(path)) == 0 as libc::c_int {
@@ -960,7 +960,7 @@ unsafe extern "C" fn cache_readlink(
     return err;
 }
 unsafe extern "C" fn cache_opendir(
-    mut path: *const libc::c_char,
+    mut _path: *const libc::c_char,
     mut fi: *mut fuse_file_info,
 ) -> libc::c_int {
     let mut cfi: *mut file_handle = 0 as *mut file_handle;

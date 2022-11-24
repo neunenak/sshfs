@@ -1,8 +1,6 @@
 use crate::options::{IdMap, NoMap};
-use crate::Request;
 use crate::IDMAP_DEFAULT;
 use crate::{fuse_operations, Connection};
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Condvar, Mutex};
 

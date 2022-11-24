@@ -12,7 +12,7 @@ mod old_ssh_opt;
 mod statics;
 
 use ::libsshfs::*;
-use libfuse_sys::fuse::{fuse_opt, fuse_args, fuse_opt_parse, fuse_file_info, fuse_opt_free_args, fuse_opt_proc_t};
+use libfuse_sys::fuse::{fuse_opt, fuse_args, fuse_opt_parse, fuse_file_info, fuse_opt_free_args};
 use libc::{FILE, time_t};
 use std::ffi::{CString, CStr};
 use std::process::exit;
@@ -2425,11 +2425,11 @@ unsafe extern "C" fn request_free(mut req: *mut Request) {
 unsafe extern "C" fn chunk_free(mut chunk: *mut read_chunk) {
     while list_empty(&mut (*chunk).reqs) == 0 {
         let mut rreq: *mut read_req = 0 as *mut read_req;
-        rreq = ({
+        rreq = {
             let mut __mptr: *const list_head = (*chunk).reqs.prev;
             (__mptr as *mut libc::c_char).offset(-(8 as libc::c_ulong as isize))
                 as *mut read_req
-        });
+        };
         list_del(&mut (*rreq).list);
         buf_free(&mut (*rreq).data);
         g_free(rreq as gpointer);
@@ -2450,7 +2450,7 @@ unsafe fn chunk_put_locked(mut chunk: *mut read_chunk) {
     chunk_put(chunk);
 }
 unsafe extern "C" fn clean_req(
-    mut key: *mut libc::c_void,
+    mut _key: *mut libc::c_void,
     mut req: *mut Request,
     mut user_data: gpointer,
 ) -> libc::c_int {
@@ -3706,12 +3706,12 @@ unsafe extern "C" fn sshfs_opendir(
     return err;
 }
 unsafe extern "C" fn sshfs_readdir(
-    mut path: *const libc::c_char,
+    mut _path: *const libc::c_char,
     mut dbuf: *mut libc::c_void,
     mut filler: fuse_fill_dir_t,
     mut offset: off_t,
     mut fi: *mut fuse_file_info,
-    mut flags: fuse_readdir_flags,
+    mut _flags: fuse_readdir_flags,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
     let mut handle: *mut dir_handle = 0 as *mut dir_handle;
@@ -3795,7 +3795,7 @@ unsafe extern "C" fn sshfs_mkdir(
 unsafe extern "C" fn sshfs_mknod(
     mut path: *const libc::c_char,
     mut mode: mode_t,
-    mut rdev: dev_t,
+    mut _rdev: dev_t,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
     let mut conn = 0 as *mut Connection;
@@ -4423,7 +4423,7 @@ unsafe extern "C" fn sshfs_open(
     return sshfs_open_common(path, 0 as libc::c_int as mode_t, fi);
 }
 unsafe extern "C" fn sshfs_flush(
-    mut path: *const libc::c_char,
+    mut _path: *const libc::c_char,
     mut fi: *mut fuse_file_info,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
@@ -4459,7 +4459,7 @@ unsafe extern "C" fn sshfs_flush(
 }
 unsafe extern "C" fn sshfs_fsync(
     mut path: *const libc::c_char,
-    mut isdatasync: libc::c_int,
+    mut _isdatasync: libc::c_int,
     mut fi: *mut fuse_file_info,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
@@ -4844,7 +4844,7 @@ unsafe extern "C" fn sshfs_async_read(
     return total as libc::c_int;
 }
 unsafe extern "C" fn sshfs_read(
-    mut path: *const libc::c_char,
+    mut _path: *const libc::c_char,
     mut rbuf: *mut libc::c_char,
     mut size: size_t,
     mut offset: off_t,
@@ -5009,7 +5009,7 @@ unsafe extern "C" fn sshfs_sync_write(
 
     {
         let lock = global_lock.lock().unwrap();
-        let lock = sio.finished.wait_while(lock, |_| sio.num_reqs !=0 );
+        let _lock = sio.finished.wait_while(lock, |_| sio.num_reqs !=0 );
     }
 
     if err == 0 {
@@ -5018,7 +5018,7 @@ unsafe extern "C" fn sshfs_sync_write(
     return err;
 }
 unsafe extern "C" fn sshfs_write(
-    mut path: *const libc::c_char,
+    mut _path: *const libc::c_char,
     mut wbuf: *const libc::c_char,
     mut size: size_t,
     mut offset: off_t,
@@ -5336,226 +5336,225 @@ unsafe extern "C" fn sshfs_truncate_workaround(
         }
     };
 }
-static mut sshfs_oper: fuse_operations = unsafe {
-    {
-        let mut init = fuse_operations {
-            getattr: Some(
-                sshfs_getattr
-                    as unsafe extern "C" fn(
-                        *const libc::c_char,
-                        *mut stat,
-                        *mut fuse_file_info,
-                    ) -> libc::c_int,
-            ),
-            readlink: Some(
-                sshfs_readlink
-                    as unsafe extern "C" fn(
-                        *const libc::c_char,
-                        *mut libc::c_char,
-                        size_t,
-                    ) -> libc::c_int,
-            ),
-            mknod: Some(
-                sshfs_mknod
-                    as unsafe extern "C" fn(
-                        *const libc::c_char,
-                        mode_t,
-                        dev_t,
-                    ) -> libc::c_int,
-            ),
-            mkdir: Some(
-                sshfs_mkdir
-                    as unsafe extern "C" fn(*const libc::c_char, mode_t) -> libc::c_int,
-            ),
-            unlink: Some(
-                sshfs_unlink as unsafe extern "C" fn(*const libc::c_char) -> libc::c_int,
-            ),
-            rmdir: Some(
-                sshfs_rmdir as unsafe extern "C" fn(*const libc::c_char) -> libc::c_int,
-            ),
-            symlink: Some(
-                sshfs_symlink
-                    as unsafe extern "C" fn(
-                        *const libc::c_char,
-                        *const libc::c_char,
-                    ) -> libc::c_int,
-            ),
-            rename: Some(
-                sshfs_rename
-                    as unsafe extern "C" fn(
-                        *const libc::c_char,
-                        *const libc::c_char,
-                        libc::c_uint,
-                    ) -> libc::c_int,
-            ),
-            link: Some(
-                sshfs_link
-                    as unsafe extern "C" fn(
-                        *const libc::c_char,
-                        *const libc::c_char,
-                    ) -> libc::c_int,
-            ),
-            chmod: Some(
-                sshfs_chmod
-                    as unsafe extern "C" fn(
-                        *const libc::c_char,
-                        mode_t,
-                        *mut fuse_file_info,
-                    ) -> libc::c_int,
-            ),
-            chown: Some(
-                sshfs_chown
-                    as unsafe extern "C" fn(
-                        *const libc::c_char,
-                        uid_t,
-                        gid_t,
-                        *mut fuse_file_info,
-                    ) -> libc::c_int,
-            ),
-            truncate: Some(
-                sshfs_truncate
-                    as unsafe extern "C" fn(
-                        *const libc::c_char,
-                        off_t,
-                        *mut fuse_file_info,
-                    ) -> libc::c_int,
-            ),
-            open: Some(
-                sshfs_open
-                    as unsafe extern "C" fn(
-                        *const libc::c_char,
-                        *mut fuse_file_info,
-                    ) -> libc::c_int,
-            ),
-            read: Some(
-                sshfs_read
-                    as unsafe extern "C" fn(
-                        *const libc::c_char,
-                        *mut libc::c_char,
-                        size_t,
-                        off_t,
-                        *mut fuse_file_info,
-                    ) -> libc::c_int,
-            ),
-            write: Some(
-                sshfs_write
-                    as unsafe extern "C" fn(
-                        *const libc::c_char,
-                        *const libc::c_char,
-                        size_t,
-                        off_t,
-                        *mut fuse_file_info,
-                    ) -> libc::c_int,
-            ),
-            statfs: Some(
-                sshfs_statfs
-                    as unsafe extern "C" fn(
-                        *const libc::c_char,
-                        *mut statvfs,
-                    ) -> libc::c_int,
-            ),
-            flush: Some(
-                sshfs_flush
-                    as unsafe extern "C" fn(
-                        *const libc::c_char,
-                        *mut fuse_file_info,
-                    ) -> libc::c_int,
-            ),
-            release: Some(
-                sshfs_release
-                    as unsafe extern "C" fn(
-                        *const libc::c_char,
-                        *mut fuse_file_info,
-                    ) -> libc::c_int,
-            ),
-            fsync: Some(
-                sshfs_fsync
-                    as unsafe extern "C" fn(
-                        *const libc::c_char,
-                        libc::c_int,
-                        *mut fuse_file_info,
-                    ) -> libc::c_int,
-            ),
-            setxattr: None,
-            getxattr: None,
-            listxattr: None,
-            removexattr: None,
-            opendir: Some(
-                sshfs_opendir
-                    as unsafe extern "C" fn(
-                        *const libc::c_char,
-                        *mut fuse_file_info,
-                    ) -> libc::c_int,
-            ),
-            readdir: Some(
-                sshfs_readdir
-                    as unsafe extern "C" fn(
-                        *const libc::c_char,
-                        *mut libc::c_void,
-                        fuse_fill_dir_t,
-                        off_t,
-                        *mut fuse_file_info,
-                        fuse_readdir_flags,
-                    ) -> libc::c_int,
-            ),
-            releasedir: Some(
-                sshfs_releasedir
-                    as unsafe extern "C" fn(
-                        *const libc::c_char,
-                        *mut fuse_file_info,
-                    ) -> libc::c_int,
-            ),
-            fsyncdir: None,
-            init: Some(
-                sshfs_init
-                    as unsafe extern "C" fn(
-                        *mut fuse_conn_info,
-                        *mut fuse_config,
-                    ) -> *mut libc::c_void,
-            ),
-            destroy: None,
-            access: Some(
-                sshfs_access
-                    as unsafe extern "C" fn(
-                        *const libc::c_char,
-                        libc::c_int,
-                    ) -> libc::c_int,
-            ),
-            create: Some(
-                sshfs_create
-                    as unsafe extern "C" fn(
-                        *const libc::c_char,
-                        mode_t,
-                        *mut fuse_file_info,
-                    ) -> libc::c_int,
-            ),
-            lock: None,
-            utimens: Some(
-                sshfs_utimens
-                    as unsafe extern "C" fn(
-                        *const libc::c_char,
-                        *const timespec,
-                        *mut fuse_file_info,
-                    ) -> libc::c_int,
-            ),
-            bmap: None,
-            ioctl: None,
-            poll: None,
-            write_buf: None,
-            read_buf: None,
-            flock: None,
-            fallocate: None,
-            copy_file_range: None,
-            lseek: None,
-        };
-        init
-    }
+static mut sshfs_oper: fuse_operations =  {
+    let mut init = fuse_operations {
+        getattr: Some(
+                     sshfs_getattr
+                     as unsafe extern "C" fn(
+                         *const libc::c_char,
+                         *mut stat,
+                         *mut fuse_file_info,
+                     ) -> libc::c_int,
+                 ),
+                 readlink: Some(
+                     sshfs_readlink
+                     as unsafe extern "C" fn(
+                         *const libc::c_char,
+                         *mut libc::c_char,
+                         size_t,
+                     ) -> libc::c_int,
+                 ),
+                 mknod: Some(
+                     sshfs_mknod
+                     as unsafe extern "C" fn(
+                         *const libc::c_char,
+                         mode_t,
+                         dev_t,
+                     ) -> libc::c_int,
+                 ),
+                 mkdir: Some(
+                     sshfs_mkdir
+                     as unsafe extern "C" fn(*const libc::c_char, mode_t) -> libc::c_int,
+                 ),
+                 unlink: Some(
+                     sshfs_unlink as unsafe extern "C" fn(*const libc::c_char) -> libc::c_int,
+                 ),
+                 rmdir: Some(
+                     sshfs_rmdir as unsafe extern "C" fn(*const libc::c_char) -> libc::c_int,
+                 ),
+                 symlink: Some(
+                     sshfs_symlink
+                     as unsafe extern "C" fn(
+                         *const libc::c_char,
+                         *const libc::c_char,
+                     ) -> libc::c_int,
+                 ),
+                 rename: Some(
+                     sshfs_rename
+                     as unsafe extern "C" fn(
+                         *const libc::c_char,
+                         *const libc::c_char,
+                         libc::c_uint,
+                     ) -> libc::c_int,
+                 ),
+                 link: Some(
+                     sshfs_link
+                     as unsafe extern "C" fn(
+                         *const libc::c_char,
+                         *const libc::c_char,
+                     ) -> libc::c_int,
+                 ),
+                 chmod: Some(
+                     sshfs_chmod
+                     as unsafe extern "C" fn(
+                         *const libc::c_char,
+                         mode_t,
+                         *mut fuse_file_info,
+                     ) -> libc::c_int,
+                 ),
+                 chown: Some(
+                     sshfs_chown
+                     as unsafe extern "C" fn(
+                         *const libc::c_char,
+                         uid_t,
+                         gid_t,
+                         *mut fuse_file_info,
+                     ) -> libc::c_int,
+                 ),
+                 truncate: Some(
+                     sshfs_truncate
+                     as unsafe extern "C" fn(
+                         *const libc::c_char,
+                         off_t,
+                         *mut fuse_file_info,
+                     ) -> libc::c_int,
+                 ),
+                 open: Some(
+                     sshfs_open
+                     as unsafe extern "C" fn(
+                         *const libc::c_char,
+                         *mut fuse_file_info,
+                     ) -> libc::c_int,
+                 ),
+                 read: Some(
+                     sshfs_read
+                     as unsafe extern "C" fn(
+                         *const libc::c_char,
+                         *mut libc::c_char,
+                         size_t,
+                         off_t,
+                         *mut fuse_file_info,
+                     ) -> libc::c_int,
+                 ),
+                 write: Some(
+                     sshfs_write
+                     as unsafe extern "C" fn(
+                         *const libc::c_char,
+                         *const libc::c_char,
+                         size_t,
+                         off_t,
+                         *mut fuse_file_info,
+                     ) -> libc::c_int,
+                 ),
+                 statfs: Some(
+                     sshfs_statfs
+                     as unsafe extern "C" fn(
+                         *const libc::c_char,
+                         *mut statvfs,
+                     ) -> libc::c_int,
+                 ),
+                 flush: Some(
+                     sshfs_flush
+                     as unsafe extern "C" fn(
+                         *const libc::c_char,
+                         *mut fuse_file_info,
+                     ) -> libc::c_int,
+                 ),
+                 release: Some(
+                     sshfs_release
+                     as unsafe extern "C" fn(
+                         *const libc::c_char,
+                         *mut fuse_file_info,
+                     ) -> libc::c_int,
+                 ),
+                 fsync: Some(
+                     sshfs_fsync
+                     as unsafe extern "C" fn(
+                         *const libc::c_char,
+                         libc::c_int,
+                         *mut fuse_file_info,
+                     ) -> libc::c_int,
+                 ),
+                 setxattr: None,
+                 getxattr: None,
+                 listxattr: None,
+                 removexattr: None,
+                 opendir: Some(
+                     sshfs_opendir
+                     as unsafe extern "C" fn(
+                         *const libc::c_char,
+                         *mut fuse_file_info,
+                     ) -> libc::c_int,
+                 ),
+                 readdir: Some(
+                     sshfs_readdir
+                     as unsafe extern "C" fn(
+                         *const libc::c_char,
+                         *mut libc::c_void,
+                         fuse_fill_dir_t,
+                         off_t,
+                         *mut fuse_file_info,
+                         fuse_readdir_flags,
+                     ) -> libc::c_int,
+                 ),
+                 releasedir: Some(
+                     sshfs_releasedir
+                     as unsafe extern "C" fn(
+                         *const libc::c_char,
+                         *mut fuse_file_info,
+                     ) -> libc::c_int,
+                 ),
+                 fsyncdir: None,
+                 init: Some(
+                     sshfs_init
+                     as unsafe extern "C" fn(
+                         *mut fuse_conn_info,
+                         *mut fuse_config,
+                     ) -> *mut libc::c_void,
+                 ),
+                 destroy: None,
+                 access: Some(
+                     sshfs_access
+                     as unsafe extern "C" fn(
+                         *const libc::c_char,
+                         libc::c_int,
+                     ) -> libc::c_int,
+                 ),
+                 create: Some(
+                     sshfs_create
+                     as unsafe extern "C" fn(
+                         *const libc::c_char,
+                         mode_t,
+                         *mut fuse_file_info,
+                     ) -> libc::c_int,
+                 ),
+                 lock: None,
+                 utimens: Some(
+                     sshfs_utimens
+                     as unsafe extern "C" fn(
+                         *const libc::c_char,
+                         *const timespec,
+                         *mut fuse_file_info,
+                     ) -> libc::c_int,
+                 ),
+                 bmap: None,
+                 ioctl: None,
+                 poll: None,
+                 write_buf: None,
+                 read_buf: None,
+                 flock: None,
+                 fallocate: None,
+                 copy_file_range: None,
+                 lseek: None,
+    };
+    init
 };
+
 unsafe extern "C" fn sshfs_opt_proc(
-    mut data: *mut libc::c_void,
+    mut _data: *mut libc::c_void,
     mut arg: *const libc::c_char,
     mut key: libc::c_int,
-    mut outargs: *mut fuse_args,
+    mut _outargs: *mut fuse_args,
 ) -> libc::c_int {
     let mut tmp: *mut libc::c_char = 0 as *mut libc::c_char;
     match key {
@@ -5639,10 +5638,10 @@ unsafe extern "C" fn sshfs_opt_proc(
     };
 }
 unsafe extern "C" fn workaround_opt_proc(
-    mut data: *mut libc::c_void,
+    mut _data: *mut libc::c_void,
     mut arg: *const libc::c_char,
-    mut key: libc::c_int,
-    mut outargs: *mut fuse_args,
+    mut _key: libc::c_int,
+    mut _outargs: *mut fuse_args,
 ) -> libc::c_int {
     fprintf(
         stderr,

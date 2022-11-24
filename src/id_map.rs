@@ -3,8 +3,7 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use std::str::FromStr;
 
-use std::ffi::CStr;
-use std::os::raw::{c_char, c_int};
+use std::os::raw::c_int;
 
 use crate::options::NoMap;
 use std::sync::Mutex;

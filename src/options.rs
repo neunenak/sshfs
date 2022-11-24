@@ -1,9 +1,8 @@
 use crate::{IDMAP_DEFAULT, SSHFS_VERSION};
-use libfuse_sys::fuse::{fuse_args, fuse_lib_help};
 use std::ffi::CStr;
 
 use clap::builder::TypedValueParser;
-use clap::{Arg, ArgAction, ArgMatches, Command};
+use clap::{Arg, ArgAction, Command};
 
 fn version_string() -> String {
     use std::fmt::Write;
@@ -295,7 +294,7 @@ fn show_help(fuse_args: *mut fuse_args) {
 
 fn print_usage() -> String {
     let first_arg = std::env::args_os().next();
-    let progname = match first_arg {
+    let _progname = match first_arg {
         Some(ref os_str) => os_str.to_string_lossy(),
         None => "".into(),
     };
