@@ -76,12 +76,6 @@ extern "C" {
     fn fuse_get_session(f: *mut fuse) -> *mut fuse_session;
     fn fuse_lowlevel_version();
     fn fuse_session_fd(se: *mut fuse_session) -> libc::c_int;
-    fn __assert_fail(
-        __assertion: *const libc::c_char,
-        __file: *const libc::c_char,
-        __line: libc::c_uint,
-        __function: *const libc::c_char,
-    ) -> !;
     static mut stderr: *mut FILE;
     fn fclose(__stream: *mut FILE) -> libc::c_int;
     fn fopen(_: *const libc::c_char, _: *const libc::c_char) -> *mut FILE;
@@ -2275,6 +2269,9 @@ unsafe extern "C" fn iov_length(
     }
     return ret;
 }
+
+const SFTP_MAX_IOV: usize = 3;
+
 unsafe extern "C" fn sftp_send_iov(
     mut conn: *mut Connection,
     mut type_0: u8,
@@ -2284,26 +2281,14 @@ unsafe extern "C" fn sftp_send_iov(
 ) -> libc::c_int {
     let mut res: libc::c_int = 0;
     let mut buf = Buffer::new();
-    let mut iovout: [iovec; 3] = [iovec {
+    let mut iovout: [iovec; SFTP_MAX_IOV] = [iovec {
         iov_base: 0 as *mut libc::c_void,
         iov_len: 0,
-    }; 3];
+    }; SFTP_MAX_IOV];
     let mut i: libc::c_uint = 0;
     let mut nout: libc::c_uint = 0 as libc::c_int as libc::c_uint;
-    if count <= (3 as libc::c_int - 1 as libc::c_int) as libc::c_ulong {} else {
-        __assert_fail(
-            b"count <= SFTP_MAX_IOV - 1\0" as *const u8 as *const libc::c_char,
-            b"../sshfs.c\0" as *const u8 as *const libc::c_char,
-            1344 as libc::c_int as libc::c_uint,
-            (*::std::mem::transmute::<
-                &[u8; 76],
-                &[libc::c_char; 76],
-            >(
-                b"int sftp_send_iov(struct conn *, uint8_t, uint32_t, struct iovec *, size_t)\0",
-            ))
-                .as_ptr(),
-        );
-    }
+    assert!(count as usize <= SFTP_MAX_IOV -1);
+
     buf_init(&mut buf, 9 as libc::c_int as size_t);
     buf_add_uint32(
         &mut buf,
@@ -3343,18 +3328,8 @@ unsafe extern "C" fn sshfs_readlink(
     let mut err: libc::c_int = 0;
     let mut buf: Buffer = Buffer::new();
     let mut name: Buffer = Buffer::new();
-    if size > 0 as libc::c_int as libc::c_ulong {} else {
-        __assert_fail(
-            b"size > 0\0" as *const u8 as *const libc::c_char,
-            b"../sshfs.c\0" as *const u8 as *const libc::c_char,
-            2154 as libc::c_int as libc::c_uint,
-            (*::std::mem::transmute::<
-                &[u8; 49],
-                &[libc::c_char; 49],
-            >(b"int sshfs_readlink(const char *, char *, size_t)\0"))
-                .as_ptr(),
-        );
-    }
+    assert!(size > 0);
+
     if sshfs.server_version < 3 as libc::c_int {
         return -(1 as libc::c_int);
     }
@@ -3437,20 +3412,8 @@ unsafe fn sftp_readdir_async(
     let mut max: libc::c_int = 2 as libc::c_int;
     let mut list: *mut GList = 0 as *mut GList;
     let mut done: libc::c_int = 0 as libc::c_int;
-    if offset == 0 as libc::c_int as libc::c_long {} else {
-        __assert_fail(
-            b"offset == 0\0" as *const u8 as *const libc::c_char,
-            b"../sshfs.c\0" as *const u8 as *const libc::c_char,
-            2210 as libc::c_int as libc::c_uint,
-            (*::std::mem::transmute::<
-                &[u8; 87],
-                &[libc::c_char; 87],
-            >(
-                b"int sftp_readdir_async(struct conn *, struct buffer *, void *, off_t, fuse_fill_dir_t)\0",
-            ))
-                .as_ptr(),
-        );
-    }
+    assert!(offset == 0);
+
     while done == 0 || outstanding != 0 {
         let mut req: *mut Request = 0 as *mut Request;
         let mut name: Buffer = Buffer::new();
@@ -3511,21 +3474,7 @@ unsafe fn sftp_readdir_async(
             }
         }
     }
-    // assert list == NULL
-    if list.is_null() {} else {
-        __assert_fail(
-            b"list == NULL\0" as *const u8 as *const libc::c_char,
-            b"../sshfs.c\0" as *const u8 as *const libc::c_char,
-            2273 as libc::c_int as libc::c_uint,
-            (*::std::mem::transmute::<
-                &[u8; 87],
-                &[libc::c_char; 87],
-            >(
-                b"int sftp_readdir_async(struct conn *, struct buffer *, void *, off_t, fuse_fill_dir_t)\0",
-            ))
-                .as_ptr(),
-        );
-    }
+    assert!(list.is_null());
     return err;
 }
 
@@ -3538,20 +3487,8 @@ unsafe extern "C" fn sftp_readdir_sync(
     mut filler: fuse_fill_dir_t,
 ) -> libc::c_int {
     let mut err: libc::c_int = 0;
-    if offset == 0 as libc::c_int as libc::c_long {} else {
-        __assert_fail(
-            b"offset == 0\0" as *const u8 as *const libc::c_char,
-            b"../sshfs.c\0" as *const u8 as *const libc::c_char,
-            2282 as libc::c_int as libc::c_uint,
-            (*::std::mem::transmute::<
-                &[u8; 86],
-                &[libc::c_char; 86],
-            >(
-                b"int sftp_readdir_sync(struct conn *, struct buffer *, void *, off_t, fuse_fill_dir_t)\0",
-            ))
-                .as_ptr(),
-        );
-    }
+    assert!(offset == 0);
+
     loop {
         let mut name: Buffer = Buffer {
             p: 0 as *mut u8,
@@ -4227,20 +4164,9 @@ unsafe extern "C" fn sshfs_open_common(
             *fresh35 = (*fresh35).wrapping_add(1);
             let ref mut fresh36 = (*(*sf).conn).file_count;
             *fresh36 += 1;
-            if (*(*sf).conn).file_count > 0 as libc::c_int {} else {
-                __assert_fail(
-                    b"sf->conn->file_count > 0\0" as *const u8 as *const libc::c_char,
-                    b"../sshfs.c\0" as *const u8 as *const libc::c_char,
-                    2763 as libc::c_int as libc::c_uint,
-                    (*::std::mem::transmute::<
-                     &[u8; 69],
-                     &[libc::c_char; 69],
-                     >(
-                         b"int sshfs_open_common(const char *, mode_t, struct fuse_file_info *)\0",
-                     ))
-                    .as_ptr(),
-                );
-            }
+
+            assert!((*(*sf).conn).file_count > 0);
+
         } else {
             let ref mut fresh37 = (*sf).conn;
             *fresh37 = &mut global_connections[0];
