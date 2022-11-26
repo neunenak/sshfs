@@ -15,7 +15,7 @@ libfuse-sys = {version = "0.4.0", features = ["fuse_35"] }
 users = "0.11.0"
 lazy_static = "1.4.0"
 clap = { version = "4.0.19", features = ["string"] }
-nix = {version = "0.25.0", features = ["socket"] }
+nix = {version = "0.25.0", features = ["socket", "process", "signal"] }
 rand = "0.8.5"
 time = "0.3.17"
 rustix = { version = "0.36.1", features = ["mm", "io_uring"] }

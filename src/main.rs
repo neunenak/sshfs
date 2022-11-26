@@ -214,7 +214,6 @@ extern "C" {
         __newmask: *const __sigset_t,
         __oldmask: *mut __sigset_t,
     ) -> libc::c_int;
-    fn kill(__pid: __pid_t, __sig: libc::c_int) -> libc::c_int;
     fn sigemptyset(__set: *mut sigset_t) -> libc::c_int;
     fn sigaddset(__set: *mut sigset_t, __signo: libc::c_int) -> libc::c_int;
     fn gettimeofday(__tv: *mut timeval, __tz: *mut libc::c_void) -> libc::c_int;
@@ -2518,7 +2517,10 @@ unsafe extern "C" fn process_requests(
     }
 
     if !global_settings.reconnect {
-        kill(getpid(), 15 as libc::c_int);
+        let pid = nix::unistd::getpid();
+        let signal = nix::sys::signal::Signal::SIGTERM;
+        /* harakiri */
+        nix::sys::signal::kill(pid, signal).unwrap();
     }
     return 0 as *mut libc::c_void;
 }
