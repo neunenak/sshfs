@@ -13,7 +13,7 @@ mod old_ssh_opt;
 mod statics;
 
 use ::libsshfs::*;
-use libfuse_sys::fuse::{fuse_opt, fuse_args, fuse_opt_parse, fuse_file_info, fuse_opt_free_args};
+use libfuse_sys::fuse::{fuse_opt, fuse_args, fuse_opt_parse, fuse_file_info, fuse_opt_free_args, fuse_daemonize};
 use libc::{FILE, time_t};
 use std::ffi::{CString, CStr};
 use std::process::exit;
@@ -46,7 +46,6 @@ extern "C" {
     pub type sockaddr_ax25;
     pub type sockaddr_at;
     pub type _GHashTable;
-    fn fuse_daemonize(foreground: libc::c_int) -> libc::c_int;
     fn fuse_pkgversion() -> *const libc::c_char;
     fn fuse_set_signal_handlers(se: *mut fuse_session) -> libc::c_int;
     fn fuse_remove_signal_handlers(se: *mut fuse_session);
